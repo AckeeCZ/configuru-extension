@@ -119,9 +119,15 @@ export function activate(context: vscode.ExtensionContext) {
             return undefined
           }
 
-          return Object.keys(parsedDotEnv).map(
-            c => new vscode.CompletionItem(c, vscode.CompletionItemKind.Text)
-          )
+          return Object.keys(parsedDotEnv).map(c => {
+            return new vscode.CompletionItem(
+              {
+                label: c,
+                description: 'configuru',
+              },
+              vscode.CompletionItemKind.Value
+            )
+          })
         },
       },
       '"',
