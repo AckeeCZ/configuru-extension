@@ -1,8 +1,8 @@
 {
-  "name": "configuru-extension",
-  "displayName": "Configuru-Helper",
-  "description": "Configuru Helper",
-  "publisher": "carishkaa",
+  "name": "configuru",
+  "displayName": "Configuru",
+  "description": "Configuru ",
+  "publisher": "ackee",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.79.0"
@@ -14,14 +14,7 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
-  "contributes": {
-    "commands": [
-      {
-        "command": "fs/readWriteFile",
-        "title": "Hello World"
-      }
-    ]
-  },
+  "contributes": {},
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
