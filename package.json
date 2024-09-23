@@ -1,9 +1,14 @@
 {
   "name": "configuru",
-  "displayName": "Configuru",
+  "displayName": "VS Code extension for the Configuru library",
   "description": "Configuru ",
   "publisher": "ackee",
   "version": "0.0.1",
+  "icon": "resources/logo.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AckeeCZ/configuru-extension"
+  },
   "engines": {
     "vscode": "^1.79.0"
   },
