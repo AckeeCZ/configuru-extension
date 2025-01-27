@@ -22,4 +22,8 @@ If your `config.ts` file contains a variable that is not present in the `env.jso
 If your `.env.jsonc` file contains a secret key that does not have description provided in a comment, the extension will underline it as a warning.
 ![Example](./resources/secret_missing_desdescription_warning.jpeg)
 
+### Highlighting of secrets with unsafe default value
+If your `config.ts` file contains a hidden variable that is not an empty string or is not prefixed and suffixed with double underscores in `.env.jsonc`, the extension will underline it as a warning.
+![Example](./resources/unsafe_default_value_for_hidden_secret_warning.jpeg)
+
 **Enjoy!**
