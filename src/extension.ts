@@ -36,6 +36,8 @@ function featureEnabled(feature: keyof ConfiguruFeatureFlags) {
 
 let diagnosticCollections: Record<string, vscode.DiagnosticCollection>
 let features: ConfiguruFeatureFlags
+const DEFAULT_CONFIG_PATH = '.env.jsonc'
+
 // This method is called when extension is activated
 // Extension is activated the very first time the command is executed
 export async function activate(context: vscode.ExtensionContext) {
@@ -83,11 +85,20 @@ export async function activate(context: vscode.ExtensionContext) {
         return
       }
       const folderUri = vscode.workspace.workspaceFolders[0].uri
-      // TODO .env.jsonc/ .env.json/ -- make it configurable by user or read it from config.ts file (defaultConfigPath)
-      const fileUri = folderUri.with({
-        path: path.posix.join(folderUri.path, '.env.jsonc'),
-      })
-      parsedDotEnv = await getParsedDotEnv(fileUri)
+      vscode.window.showInformationMessage('Configuru is activated')
+      const configPaths = vscode.workspace.getConfiguration('configuru.env').get<{ path: string, projectName: string }[]>('paths')
+      const currentFolder = vscode.workspace.workspaceFolders[0].name
+      let envPath = DEFAULT_CONFIG_PATH
+      if (configPaths) {
+        envPath = configPaths.find(p => p.projectName === currentFolder)?.path ?? DEFAULT_CONFIG_PATH
+      }
+      const fileUri = vscode.Uri.joinPath(folderUri, envPath)
+      vscode.workspace.getConfiguration()
+      const readData = await vscode.workspace.fs.readFile(fileUri)
+      const readStr = Buffer.from(readData).toString('utf8')
+
+      const errors: jsonParser.ParseError[] = []
+      parsedDotEnv = jsonParser.parse(readStr, errors)
       const parsedDotEnvKeys = Object.keys(parsedDotEnv)
 
       // ============== Read config.ts file ==============
@@ -120,7 +131,7 @@ export async function activate(context: vscode.ExtensionContext) {
             )
             const warningMessage = new vscode.Diagnostic(
               keyRange,
-              `Key '${hiddenKey}' should have a safe default value. Use empty string or '__${hiddenKey}__' in .env.jsonc.`,
+              `Key '${hiddenKey}' should have a safe default value. Use empty string or '__${hiddenKey}__' in ${envPath}`,
               vscode.DiagnosticSeverity.Warning
             )
             warningMessage.relatedInformation = [
@@ -176,7 +187,7 @@ export async function activate(context: vscode.ExtensionContext) {
             // Underline missing key in config.ts file. Add a message to go to .env.jsonc file and link it
             const errorMessage = new vscode.Diagnostic(
               keyRange,
-              `Key '${key}' is missing in .env.jsonc`,
+              `Key '${key}' is missing in ${envPath}`,
               vscode.DiagnosticSeverity.Error
             )
             errorMessage.relatedInformation = [

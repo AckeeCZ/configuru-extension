@@ -42,6 +42,22 @@
           "type": "boolean",
           "default": true,
           "description": "Highlights hidden variables in ts file that have unsafe default values in env file"
+        },
+        "configuru.env.paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "The path to the configuration file"
+              },
+              "projectName": {
+                "type": "string",
+                "description": "Name of the project"
+              }
+            }
+          }
         }
       }
     }
