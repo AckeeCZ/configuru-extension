@@ -95,6 +95,13 @@ export function activate(context: vscode.ExtensionContext) {
       }
       diagnosticCollection.set(file.document.uri, diagnostics)
     }
+
+    // ======= Highlight keys without description when .env.jsonc file is changed =======
+    highlightKeysWithoutDescription(file.document)
+  })
+
+  vscode.workspace.onDidOpenTextDocument(async _ => {
+    highlightKeysWithoutDescription(vscode.window.activeTextEditor?.document)
   })
 
   // ======================== Add suggestions to the editor ========================
@@ -154,6 +161,58 @@ const matchMultipleLines = (
     lastLine--
   }
   return isMatching
+}
+
+const highlightKeysWithoutDescription = (document?: vscode.TextDocument) => {
+  if (!vscode.workspace.workspaceFolders) {
+    return
+  }
+  if (document?.fileName.endsWith('.env.jsonc')) {
+    const text = document.getText()
+    const pattern = /\".*":/g
+    const matchedConfigKeys = text.match(pattern) ?? []
+    const diagnostics: vscode.Diagnostic[] = []
+
+    for (const key of matchedConfigKeys) {
+      const keyStartPos = text.indexOf(key)
+      const keyLine = document.positionAt(keyStartPos).line
+
+      const folderUri = vscode.workspace.workspaceFolders[0].uri
+      const fileUri = folderUri.with({
+        path: path.posix.join(folderUri.path, '.env.jsonc'),
+      })
+
+      const lineAboveKey = document.lineAt(keyLine - 1).text.trim()
+      if (!lineAboveKey.startsWith('//') && !lineAboveKey.endsWith('*/')) {
+        const keyName = key.split('"')[1]
+        const startPos = text.indexOf(`"${keyName}"`)
+        const endPos = startPos + keyName.length + 2
+        const keyRange = new vscode.Range(
+          document.positionAt(startPos),
+          document.positionAt(endPos)
+        )
+
+        const warningMessage = new vscode.Diagnostic(
+          keyRange,
+          `Key '${keyName}' does not have a description. Add a comment describing its purpose.`,
+          vscode.DiagnosticSeverity.Warning
+        )
+        warningMessage.relatedInformation = [
+          {
+            location: new vscode.Location(document.uri, keyRange),
+            message: 'Missing description for this key.',
+          },
+        ]
+        warningMessage.code = {
+          value: 'key-without-description',
+          target: fileUri,
+        }
+        warningMessage.source = 'configuru'
+        diagnostics.push(warningMessage)
+      }
+    }
+    diagnosticCollection.set(document.uri, diagnostics)
+  }
 }
 
 // This method is called when extension is deactivated
