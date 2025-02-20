@@ -2,6 +2,8 @@ import * as vscode from 'vscode'
 import path = require('path')
 import * as jsonParser from 'jsonc-parser'
 
+const DEFAULT_CONFIG_PATH = '.env.jsonc'
+
 // This method is called when extension is activated
 // Extension is activated the very first time the command is executed
 let diagnosticCollection: vscode.DiagnosticCollection
@@ -17,10 +19,17 @@ export function activate(context: vscode.ExtensionContext) {
         return
       }
       const folderUri = vscode.workspace.workspaceFolders[0].uri
-      // TODO .env.jsonc/ .env.json/ -- make it configurable by user or read it from config.ts file (defaultConfigPath)
+      vscode.window.showInformationMessage('Configuru is activated')
+      const configPaths = vscode.workspace.getConfiguration('configuru.env').get<{ path: string, projectName: string }[]>('paths')
+      const currentFolder = vscode.workspace.workspaceFolders[0].name
+      let envPath = DEFAULT_CONFIG_PATH
+      if (configPaths) {
+        envPath = configPaths.find(p => p.projectName === currentFolder)?.path ?? DEFAULT_CONFIG_PATH
+      }
       const fileUri = folderUri.with({
-        path: path.posix.join(folderUri.path, '.env.jsonc'),
+        path: path.posix.join(folderUri.path, envPath),
       })
+      vscode.workspace.getConfiguration()
       const readData = await vscode.workspace.fs.readFile(fileUri)
       const readStr = Buffer.from(readData).toString('utf8')
 

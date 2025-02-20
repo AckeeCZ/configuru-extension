@@ -18,4 +18,13 @@ The extension suggests the names of the variables that are present in the `env.j
 If your `config.ts` file contains a variable that is not present in the `env.jsonc` file, the extension will underline it as an error.
 ![Example](./resources/error_highlighting.png)
 
+### Specifying your env file
+If your file with config has different name than `env.jsonc`, you can specify its name in the vscode settings.json.
+```
+    "configuru.env.paths": [{
+        "path": "my-custom-config.jsonc",
+        "projectName": "my-project-with-custom-config"
+    }]
+```
+
 **Enjoy!**

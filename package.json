@@ -19,7 +19,29 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "configuration": {
+      "title": "Configuru extension",
+      "properties": {
+        "configuru.env.paths": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "description": "The path to the configuration file"
+              },
+              "projectName": {
+                "type": "string",
+                "description": "Name of the project"
+              }
+            }
+          }
+        }
+      }
+    }
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
