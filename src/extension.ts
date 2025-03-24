@@ -2,13 +2,79 @@ import * as vscode from 'vscode'
 import path = require('path')
 import * as jsonParser from 'jsonc-parser'
 
+interface ConfiguruFeatureFlags {
+  suggestEnvVariables: boolean
+  highlightInvalidVariables: boolean
+  highlightSecretsMissingDescription: boolean
+  highlightUnsafeDefaultValues: boolean
+}
+
+function loadConfiguration(): { features: ConfiguruFeatureFlags } {
+  const config = vscode.workspace.getConfiguration('configuru')
+  return {
+    features: {
+      suggestEnvVariables: config.get('features.suggestEnvVariables', true),
+      highlightInvalidVariables: config.get(
+        'features.highlightInvalidVariables',
+        true
+      ),
+      highlightSecretsMissingDescription: config.get(
+        'features.highlightSecretsMissingDescription',
+        true
+      ),
+      highlightUnsafeDefaultValues: config.get(
+        'features.highlightUnsafeDefaultValues',
+        true
+      ),
+    },
+  }
+}
+
+function featureEnabled(feature: keyof ConfiguruFeatureFlags) {
+  return features[feature]
+}
+
+let diagnosticCollections: Record<string, vscode.DiagnosticCollection>
+let features: ConfiguruFeatureFlags
 // This method is called when extension is activated
 // Extension is activated the very first time the command is executed
-let diagnosticCollection: vscode.DiagnosticCollection
 export async function activate(context: vscode.ExtensionContext) {
   let parsedDotEnv: Record<string, any> = {}
-  diagnosticCollection =
-    vscode.languages.createDiagnosticCollection('typescript') // for wave underline
+  diagnosticCollections = {
+    invalidVariables:
+      vscode.languages.createDiagnosticCollection('invalid-variables'),
+    secretsMissingDescription: vscode.languages.createDiagnosticCollection(
+      'missing-descriptions'
+    ),
+    unsafeDefaultValues:
+      vscode.languages.createDiagnosticCollection('unsafe-defaults'),
+  }
+  features = loadConfiguration().features
+
+  let suggestionDisposable: vscode.Disposable | undefined
+
+  registerSuggestions()
+
+  vscode.workspace.onDidChangeConfiguration(event => {
+    if (event.affectsConfiguration('configuru.features')) {
+      features = loadConfiguration().features
+      if (!features.highlightInvalidVariables) {
+        diagnosticCollections.invalidVariables.clear()
+      }
+      if (!features.highlightSecretsMissingDescription) {
+        diagnosticCollections.secretsMissingDescription.clear()
+      }
+      if (!features.highlightUnsafeDefaultValues) {
+        diagnosticCollections.unsafeDefaultValues.clear()
+      }
+      if (
+        event.affectsConfiguration('configuru.features.suggestEnvVariables')
+      ) {
+        registerSuggestions()
+      }
+    }
+  })
+
   vscode.workspace.onDidChangeTextDocument(async file => {
     // TODO do filename configurable by user
     if (file?.document?.fileName.endsWith('/config.ts')) {
@@ -38,97 +104,108 @@ export async function activate(context: vscode.ExtensionContext) {
           .match(hiddenPattern)
           ?.map(x => x.slice(7, -1).trim().slice(1, -1)) ?? []
 
-      const diagnostics: vscode.Diagnostic[] = []
-
       // ============== Underline keys with unsafe default values in config.ts file ==============
-      for (const hiddenKey of hiddenTsKeys) {
-        const safeDefaultValue =
-          parsedDotEnv[hiddenKey] === '' ||
-          parsedDotEnv[hiddenKey] === `__${hiddenKey}__`
-        if (!safeDefaultValue) {
-          const startPos = file.document.getText().indexOf(`'${hiddenKey}'`)
-          const endPos = startPos + hiddenKey.length + 2
-          const keyRange = new vscode.Range(
-            file.document.positionAt(startPos),
-            file.document.positionAt(endPos)
-          )
-          const warningMessage = new vscode.Diagnostic(
-            keyRange,
-            `Key '${hiddenKey}' should have a safe default value. Use empty string or '__${hiddenKey}__' in .env.jsonc.`,
-            vscode.DiagnosticSeverity.Warning
-          )
-          warningMessage.relatedInformation = [
-            {
-              location: new vscode.Location(file.document.uri, keyRange),
-              message: 'Unsafe default value in .env',
-            },
-          ]
-          warningMessage.code = {
-            value: 'key-unsafe-default-value',
-            target: fileUri,
-          }
-          warningMessage.source = 'configuru'
+      if (featureEnabled('highlightUnsafeDefaultValues')) {
+        const diagnosticsUnsafeDefaultValues: vscode.Diagnostic[] = []
+        for (const hiddenKey of hiddenTsKeys) {
+          const safeDefaultValue =
+            parsedDotEnv[hiddenKey] === '' ||
+            parsedDotEnv[hiddenKey] === `__${hiddenKey}__`
+          if (!safeDefaultValue) {
+            const startPos = file.document.getText().indexOf(`'${hiddenKey}'`)
+            const endPos = startPos + hiddenKey.length + 2
+            const keyRange = new vscode.Range(
+              file.document.positionAt(startPos),
+              file.document.positionAt(endPos)
+            )
+            const warningMessage = new vscode.Diagnostic(
+              keyRange,
+              `Key '${hiddenKey}' should have a safe default value. Use empty string or '__${hiddenKey}__' in .env.jsonc.`,
+              vscode.DiagnosticSeverity.Warning
+            )
+            warningMessage.relatedInformation = [
+              {
+                location: new vscode.Location(file.document.uri, keyRange),
+                message: 'Unsafe default value in .env',
+              },
+            ]
+            warningMessage.code = {
+              value: 'key-unsafe-default-value',
+              target: fileUri,
+            }
+            warningMessage.source = 'configuru'
 
-          diagnostics.push(warningMessage)
+            diagnosticsUnsafeDefaultValues.push(warningMessage)
+          }
+          diagnosticCollections.unsafeDefaultValues.set(
+            file.document.uri,
+            diagnosticsUnsafeDefaultValues
+          )
         }
       }
 
       // ============== Underline missing keys in config.ts file ==============
-      // Get all comments in the file in order to not underline missing keys in comments
-      const commentPattern = /\/\/.*\n/g
-      const comments = text.match(commentPattern)
-      const commentRanges =
-        comments?.map(x => {
-          const startPos = text.indexOf(x)
-          const endPos = startPos + x.length
-          return new vscode.Range(
+      if (featureEnabled('highlightInvalidVariables')) {
+        const diagnosticsMissingKeys: vscode.Diagnostic[] = []
+        // Get all comments in the file in order to not underline missing keys in comments
+        const commentPattern = /\/\/.*\n/g
+        const comments = text.match(commentPattern)
+        const commentRanges =
+          comments?.map(x => {
+            const startPos = text.indexOf(x)
+            const endPos = startPos + x.length
+            return new vscode.Range(
+              file.document.positionAt(startPos),
+              file.document.positionAt(endPos)
+            )
+          }) ?? []
+
+        // Underline missing keys in config.ts file
+        for (const key of missingKeysInDotEnv) {
+          const startPos = file.document.getText().indexOf(`'${key}'`)
+          const endPos = startPos + key.length + 2
+          const keyRange = new vscode.Range(
             file.document.positionAt(startPos),
             file.document.positionAt(endPos)
           )
-        }) ?? []
 
-      // Underline missing keys in config.ts file
-      for (const key of missingKeysInDotEnv) {
-        const startPos = file.document.getText().indexOf(`'${key}'`)
-        const endPos = startPos + key.length + 2
-        const keyRange = new vscode.Range(
-          file.document.positionAt(startPos),
-          file.document.positionAt(endPos)
-        )
+          const isMissingKeyInTheComment =
+            comments &&
+            commentRanges.some(commentRange => commentRange.contains(keyRange))
+          if (!isMissingKeyInTheComment) {
+            // Underline missing key in config.ts file. Add a message to go to .env.jsonc file and link it
+            const errorMessage = new vscode.Diagnostic(
+              keyRange,
+              `Key '${key}' is missing in .env.jsonc`,
+              vscode.DiagnosticSeverity.Error
+            )
+            errorMessage.relatedInformation = [
+              {
+                location: new vscode.Location(file.document.uri, keyRange),
+                message: 'Missing key in .env',
+              },
+              {
+                location: new vscode.Location(
+                  fileUri,
+                  new vscode.Range(0, 0, 0, 0)
+                ),
+                message: 'This file is missing the key',
+              },
+            ]
+            errorMessage.code = {
+              value: 'missing-key',
+              target: fileUri,
+            }
+            errorMessage.source = 'configuru'
 
-        const isMissingKeyInTheComment =
-          comments &&
-          commentRanges.some(commentRange => commentRange.contains(keyRange))
-        if (!isMissingKeyInTheComment) {
-          // Underline missing key in config.ts file. Add a message to go to .env.jsonc file and link it
-          const errorMessage = new vscode.Diagnostic(
-            keyRange,
-            `Key '${key}' is missing in .env.jsonc`,
-            vscode.DiagnosticSeverity.Error
-          )
-          errorMessage.relatedInformation = [
-            {
-              location: new vscode.Location(file.document.uri, keyRange),
-              message: 'Missing key in .env',
-            },
-            {
-              location: new vscode.Location(
-                fileUri,
-                new vscode.Range(0, 0, 0, 0)
-              ),
-              message: 'This file is missing the key',
-            },
-          ]
-          errorMessage.code = {
-            value: 'missing-key',
-            target: fileUri,
+            diagnosticsMissingKeys.push(errorMessage)
           }
-          errorMessage.source = 'configuru'
-
-          diagnostics.push(errorMessage)
         }
+        diagnosticCollections.invalidVariables.set(
+          file.document.uri,
+          diagnosticsMissingKeys
+        )
       }
-      diagnosticCollection.set(file.document.uri, diagnostics)
     }
 
     // ======= Highlight keys without description when .env.jsonc file is changed =======
@@ -142,44 +219,54 @@ export async function activate(context: vscode.ExtensionContext) {
   })
 
   // ======================== Add suggestions to the editor ========================
-  context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(
-      // TODO do filename config.ts configurable by user
-      { language: 'typescript', pattern: '**/config.ts' },
-      {
-        async provideCompletionItems(
-          document: vscode.TextDocument,
-          position: vscode.Position
-        ) {
-          const linePrefix = document
-            .lineAt(position)
-            .text.slice(0, position.character)
-
-          // TODO better? /loader\.(((string|bool|number|json)\((?:"|'))|(custom\(.*\)\(('|")))$/g;
-          // TODO besides \n\r\s also consider comments
-          const pattern = /\([\n\r\s]*('|")/g // (' or (" or divided with spaces/newlines
-          if (
-            !linePrefix.match(pattern) &&
-            !matchMultipleLines(document, position, 5, linePrefix, pattern)
+  function registerSuggestions() {
+    if (suggestionDisposable) {
+      suggestionDisposable.dispose()
+      const index = context.subscriptions.indexOf(suggestionDisposable)
+      if (index > -1) {
+        context.subscriptions.splice(index, 1)
+      }
+    }
+    if (featureEnabled('suggestEnvVariables')) {
+      suggestionDisposable = vscode.languages.registerCompletionItemProvider(
+        // TODO do filename config.ts configurable by user
+        { language: 'typescript', pattern: '**/config.ts' },
+        {
+          async provideCompletionItems(
+            document: vscode.TextDocument,
+            position: vscode.Position
           ) {
-            return undefined
-          }
+            const linePrefix = document
+              .lineAt(position)
+              .text.slice(0, position.character)
 
-          return Object.keys(parsedDotEnv).map(c => {
-            return new vscode.CompletionItem(
-              {
-                label: c,
-                description: 'configuru',
-              },
-              vscode.CompletionItemKind.Value
-            )
-          })
+            // TODO better? /loader\.(((string|bool|number|json)\((?:"|'))|(custom\(.*\)\(('|")))$/g;
+            // TODO besides \n\r\s also consider comments
+            const pattern = /\([\n\r\s]*('|")/g // (' or (" or divided with spaces/newlines
+            if (
+              !linePrefix.match(pattern) &&
+              !matchMultipleLines(document, position, 5, linePrefix, pattern)
+            ) {
+              return undefined
+            }
+
+            return Object.keys(parsedDotEnv).map(c => {
+              return new vscode.CompletionItem(
+                {
+                  label: c,
+                  description: 'configuru',
+                },
+                vscode.CompletionItemKind.Value
+              )
+            })
+          },
         },
-      },
-      '"',
-      "'"
-    )
-  )
+        '"',
+        "'"
+      )
+      context.subscriptions.push(suggestionDisposable)
+    }
+  }
 }
 
 const matchMultipleLines = (
@@ -203,6 +290,9 @@ const matchMultipleLines = (
 const highlightKeysWithoutDescription = async (
   document?: vscode.TextDocument
 ) => {
+  if (!featureEnabled('highlightSecretsMissingDescription')) {
+    return
+  }
   if (!vscode.workspace.workspaceFolders) {
     return
   }
@@ -260,7 +350,10 @@ const highlightKeysWithoutDescription = async (
         }
       }
     }
-    diagnosticCollection.set(document.uri, diagnostics)
+    diagnosticCollections.secretsMissingDescription.set(
+      document.uri,
+      diagnostics
+    )
   }
 }
 const getParsedDotEnv = async (fileUri: vscode.Uri) => {
@@ -274,7 +367,7 @@ const getParsedDotEnv = async (fileUri: vscode.Uri) => {
 
 // This method is called when extension is deactivated
 export function deactivate() {
-  if (diagnosticCollection) {
-    diagnosticCollection.clear()
-  }
+  Object.values(diagnosticCollections).forEach(diagnostic => {
+    diagnostic.clear()
+  })
 }
