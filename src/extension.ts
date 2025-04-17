@@ -5,8 +5,8 @@ import * as jsonParser from 'jsonc-parser'
 // This method is called when extension is activated
 // Extension is activated the very first time the command is executed
 let diagnosticCollection: vscode.DiagnosticCollection
-export function activate(context: vscode.ExtensionContext) {
-  let parsedDotEnv: any = {}
+export async function activate(context: vscode.ExtensionContext) {
+  let parsedDotEnv: Record<string, any> = {}
   diagnosticCollection =
     vscode.languages.createDiagnosticCollection('typescript') // for wave underline
   vscode.workspace.onDidChangeTextDocument(async file => {
@@ -21,11 +21,7 @@ export function activate(context: vscode.ExtensionContext) {
       const fileUri = folderUri.with({
         path: path.posix.join(folderUri.path, '.env.jsonc'),
       })
-      const readData = await vscode.workspace.fs.readFile(fileUri)
-      const readStr = Buffer.from(readData).toString('utf8')
-
-      const errors: jsonParser.ParseError[] = []
-      parsedDotEnv = jsonParser.parse(readStr, errors)
+      parsedDotEnv = await getParsedDotEnv(fileUri)
       const parsedDotEnvKeys = Object.keys(parsedDotEnv)
 
       // ============== Read config.ts file ==============
@@ -95,6 +91,15 @@ export function activate(context: vscode.ExtensionContext) {
       }
       diagnosticCollection.set(file.document.uri, diagnostics)
     }
+
+    // ======= Highlight keys without description when .env.jsonc file is changed =======
+    await highlightKeysWithoutDescription(file.document)
+  })
+
+  vscode.workspace.onDidOpenTextDocument(async _ => {
+    await highlightKeysWithoutDescription(
+      vscode.window.activeTextEditor?.document
+    )
   })
 
   // ======================== Add suggestions to the editor ========================
@@ -154,6 +159,78 @@ const matchMultipleLines = (
     lastLine--
   }
   return isMatching
+}
+
+const highlightKeysWithoutDescription = async (
+  document?: vscode.TextDocument
+) => {
+  if (!vscode.workspace.workspaceFolders) {
+    return
+  }
+  if (document?.fileName.endsWith('.env.jsonc')) {
+    const folderUri = vscode.workspace.workspaceFolders[0].uri
+    const fileUri = folderUri.with({
+      path: path.posix.join(folderUri.path, '.env.jsonc'),
+    })
+    const parsedDotEnv = await getParsedDotEnv(fileUri)
+    const rootKeys = Object.keys(parsedDotEnv)
+    const text = document.getText()
+    const pattern = /\".*":/g
+    const matchedConfigKeys = text.match(pattern) ?? []
+    const diagnostics: vscode.Diagnostic[] = []
+
+    for (const key of matchedConfigKeys) {
+      const keyStartPos = text.indexOf(key)
+      const keyLine = document.positionAt(keyStartPos).line
+      const lineAbove = keyLine > 0
+      const lineAboveKey = lineAbove
+        ? document.lineAt(keyLine - 1).text.trim()
+        : ''
+      if (
+        lineAbove &&
+        !lineAboveKey.startsWith('//') &&
+        !lineAboveKey.endsWith('*/')
+      ) {
+        const keyName = key.split('"')[1]
+        const rootKey = rootKeys.includes(keyName)
+        if (rootKey) {
+          const startPos = text.indexOf(`"${keyName}"`)
+          const endPos = startPos + keyName.length + 2
+          const keyRange = new vscode.Range(
+            document.positionAt(startPos),
+            document.positionAt(endPos)
+          )
+
+          const warningMessage = new vscode.Diagnostic(
+            keyRange,
+            `Key '${keyName}' does not have a description. Add a comment describing its purpose.`,
+            vscode.DiagnosticSeverity.Warning
+          )
+          warningMessage.relatedInformation = [
+            {
+              location: new vscode.Location(document.uri, keyRange),
+              message: 'Missing description for this key.',
+            },
+          ]
+          warningMessage.code = {
+            value: 'key-without-description',
+            target: fileUri,
+          }
+          warningMessage.source = 'configuru'
+          diagnostics.push(warningMessage)
+        }
+      }
+    }
+    diagnosticCollection.set(document.uri, diagnostics)
+  }
+}
+const getParsedDotEnv = async (fileUri: vscode.Uri) => {
+  let parsedDotEnv: Record<string, any> = {}
+  const readData = await vscode.workspace.fs.readFile(fileUri)
+  const readStr = Buffer.from(readData).toString('utf8')
+  const errors: jsonParser.ParseError[] = []
+  parsedDotEnv = jsonParser.parse(readStr, errors)
+  return parsedDotEnv ?? {}
 }
 
 // This method is called when extension is deactivated
