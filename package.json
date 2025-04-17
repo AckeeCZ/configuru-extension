@@ -19,7 +19,33 @@
     "onStartupFinished"
   ],
   "main": "./out/extension.js",
-  "contributes": {},
+  "contributes": {
+    "configuration": {
+      "title": "Configuru extension",
+      "properties": {
+        "configuru.features.suggestEnvVariables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Suggests variable names in ts file of secrets in env file"
+        },
+        "configuru.features.highlightInvalidVariables": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlights variables in ts file that are not presented in env file"
+        },
+        "configuru.features.highlightSecretsMissingDescription": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlights secret keys in env file that do not have a description provided in a comment"
+        },
+        "configuru.features.highlightUnsafeDefaultValues": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlights hidden variables in ts file that have unsafe default values in env file"
+        }
+      }
+    }
+  },
   "scripts": {
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
