@@ -32,6 +32,46 @@ export async function activate(context: vscode.ExtensionContext) {
       const missingKeysInDotEnv = configTsKeys.filter(
         x => !parsedDotEnvKeys.includes(x)
       )
+      const hiddenPattern = /hidden\([\n\r\s]*('|").*("|')[\n\r\s]*\)/g
+      const hiddenTsKeys =
+        text
+          .match(hiddenPattern)
+          ?.map(x => x.slice(7, -1).trim().slice(1, -1)) ?? []
+
+      const diagnostics: vscode.Diagnostic[] = []
+
+      // ============== Underline keys with unsafe default values in config.ts file ==============
+      for (const hiddenKey of hiddenTsKeys) {
+        const safeDefaultValue =
+          parsedDotEnv[hiddenKey] === '' ||
+          parsedDotEnv[hiddenKey] === `__${hiddenKey}__`
+        if (!safeDefaultValue) {
+          const startPos = file.document.getText().indexOf(`'${hiddenKey}'`)
+          const endPos = startPos + hiddenKey.length + 2
+          const keyRange = new vscode.Range(
+            file.document.positionAt(startPos),
+            file.document.positionAt(endPos)
+          )
+          const warningMessage = new vscode.Diagnostic(
+            keyRange,
+            `Key '${hiddenKey}' should have a safe default value. Use empty string or '__${hiddenKey}__' in .env.jsonc.`,
+            vscode.DiagnosticSeverity.Warning
+          )
+          warningMessage.relatedInformation = [
+            {
+              location: new vscode.Location(file.document.uri, keyRange),
+              message: 'Unsafe default value in .env',
+            },
+          ]
+          warningMessage.code = {
+            value: 'key-unsafe-default-value',
+            target: fileUri,
+          }
+          warningMessage.source = 'configuru'
+
+          diagnostics.push(warningMessage)
+        }
+      }
 
       // ============== Underline missing keys in config.ts file ==============
       // Get all comments in the file in order to not underline missing keys in comments
@@ -48,7 +88,6 @@ export async function activate(context: vscode.ExtensionContext) {
         }) ?? []
 
       // Underline missing keys in config.ts file
-      const diagnostics: vscode.Diagnostic[] = []
       for (const key of missingKeysInDotEnv) {
         const startPos = file.document.getText().indexOf(`'${key}'`)
         const endPos = startPos + key.length + 2
