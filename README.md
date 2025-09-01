@@ -23,6 +23,7 @@ The extension suggests the names of the variables that are present in the `env.j
 If your `config.ts` file contains a variable that is not present in the `env.jsonc` file, the extension will underline it as an error.
 ![Example](./resources/error_highlighting.png)
 
+<<<<<<< HEAD
 ### Highlighting of secrets missing a description
 🔧 `configuru.features.highlightSecretsMissingDescription`
 
@@ -34,5 +35,14 @@ If your `.env.jsonc` file contains a secret key that does not have description p
 
 If your `config.ts` file contains a hidden variable that is not an empty string or is not prefixed and suffixed with double underscores in `.env.jsonc`, the extension will underline it as a warning.
 ![Example](./resources/unsafe_default_value_for_hidden_secret_warning.jpeg)
+
+### Specifying your env file
+If your config file has a different name than `env.jsonc`, or is located in a different path than the root directory, you can specify its name and relative path in the VSCode settings.json
+```
+    "configuru.env.paths": [{
+        "path": "config/my-custom-config.jsonc",
+        "projectName": "my-project-with-custom-config"
+    }]
+```
 
 **Enjoy!**
