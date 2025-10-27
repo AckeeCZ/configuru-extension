@@ -1,10 +1,10 @@
 import * as vscode from 'vscode'
+import { context } from './components/context'
 import { createConfiguruFileChangedEvent } from './components/event'
 import { isTriggeredByEvent } from './components/highlighters/highlighter.port'
 import { keysWithoutDescriptionHighlighter } from './components/highlighters/keys-without-description'
 import { missingEnvFileKeysHighlighter } from './components/highlighters/missing-env-file-keys'
 import { unsafeDefaultVariablesHighlighter } from './components/highlighters/unsafe-default-variables'
-import { context } from './components/context'
 import { envVariablesSuggestion } from './components/suggestions/env-variables-suggestion'
 
 const highlighters = [
@@ -76,6 +76,8 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
     if (!event) {
       return
     }
+
+    context.clean(event)
 
     for (const highlighter of highlighters) {
       if (!isTriggeredByEvent(highlighter, event.type)) {

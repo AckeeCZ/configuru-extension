@@ -1,7 +1,10 @@
 import * as vscode from 'vscode'
+import { ConfiguruEvent } from './event'
+import { helpers } from './helpers'
 
 export interface ConfiguruContext {
   projects: Record<string, ProjectContext>
+  clean: (event: ConfiguruEvent) => void
   config: {
     load: () => ConfiguruExtConfig
     get: () => ConfiguruExtConfig
@@ -77,8 +80,27 @@ const get = () => {
   return loadedConfig ?? load()
 }
 
+const clean = (event: ConfiguruEvent) => {
+  if (!event.context.projects[event.projectName]) {
+    return
+  }
+
+  if (helpers.isTsConfigFileEvent(event)) {
+    event.context.projects[event.projectName].tsConfigFile = undefined
+    event.context.projects[event.projectName].tsConfigFileText = undefined
+    event.context.projects[event.projectName].tsConfigFileUri = undefined
+  }
+  if (helpers.isEnvFileEvent(event)) {
+    event.context.projects[event.projectName].envFile = undefined
+    event.context.projects[event.projectName].envFileParsed = undefined
+    event.context.projects[event.projectName].envFileText = undefined
+    event.context.projects[event.projectName].envFileUri = undefined
+  }
+}
+
 export const context: ConfiguruContext = {
   projects: {},
+  clean,
   config: {
     load,
     get,

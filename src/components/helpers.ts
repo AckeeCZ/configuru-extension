@@ -125,4 +125,6 @@ export const helpers = {
     getText: contextMethod(getTsConfigFileText, 'tsConfigFileText'),
     getUri: contextMethod(getTsConfigFileUri, 'tsConfigFileUri'),
   },
+  isTsConfigFileEvent,
+  isEnvFileEvent,
 }

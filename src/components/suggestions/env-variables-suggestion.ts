@@ -46,6 +46,8 @@ export const envVariablesSuggestion: SuggestionPort = {
             // Not a valid file edited
             return
           }
+          context.clean(event)
+          
           const dotEnvFile = await helpers.envFile.getParsed(event)
           const linePrefix = document
             .lineAt(position)
