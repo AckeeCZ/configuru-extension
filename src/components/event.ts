@@ -111,24 +111,25 @@ export function contextMethod<
     ...args: any[]
   ) => EventContextValue<K> | Promise<EventContextValue<K>>,
 >(method: F, cacheKey: K): F {
+  // eslint-disable-next-line sonarjs/function-return-type
   return ((event: ConfiguruEvent, ...args: any[]) => {
-    const projectContext = event.context.projects[event.projectName] ?? {}
-    if (event.projectName in event.context.projects) {
-      event.context.projects[event.projectName] = projectContext
+    if (!(event.projectName in event.context.projects)) {
+      event.context.projects[event.projectName] = {}
     }
 
-    if (cacheKey in event.context) {
-      return [cacheKey] as any
+    if (cacheKey in event.context.projects[event.projectName]) {
+      return event.context.projects[event.projectName][cacheKey] as EventContext[K]
     }
     const result = method(event, ...args)
 
     if (result && typeof (result as any).then === 'function') {
-      return (result as Promise<any>).then(res => {
-        projectContext[cacheKey] = res
+      return (result as Promise<any>).then((res: EventContext[K]) => {
+        event.context.projects[event.projectName][cacheKey] = res
         return res
-      })
+      }) as Promise<EventContext[K]>
     }
-    projectContext[cacheKey] = result as EventContext[K]
-    return result
+    event.context.projects[event.projectName][cacheKey] = result as EventContext[K]
+
+    return result as EventContext[K]
   }) as F
 }

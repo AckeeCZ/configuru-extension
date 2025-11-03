@@ -36,20 +36,10 @@ export interface ConfiguruExtConfig {
 
 const DEFAULT_CONFIG_PATH = '.env.jsonc'
 
-let loadedConfig: ConfiguruExtConfig = {
-  defaultConfigPath: DEFAULT_CONFIG_PATH,
-  projectPaths: [],
-  features: {
-    suggestEnvVariables: true,
-    highlightInvalidVariables: true,
-    highlightSecretsMissingDescription: true,
-    highlightUnsafeDefaultValues: true,
-  },
-}
+let loadedConfig: ConfiguruExtConfig | undefined
 
 const load = (): ConfiguruExtConfig => {
   const vsCodeConfig = vscode.workspace.getConfiguration('configuru')
-
   loadedConfig = {
     projectPaths: vsCodeConfig.get('paths') ?? [],
     defaultConfigPath: DEFAULT_CONFIG_PATH,
@@ -86,15 +76,15 @@ const clean = (event: ConfiguruEvent) => {
   }
 
   if (helpers.isTsConfigFileEvent(event)) {
-    event.context.projects[event.projectName].tsConfigFile = undefined
-    event.context.projects[event.projectName].tsConfigFileText = undefined
-    event.context.projects[event.projectName].tsConfigFileUri = undefined
+    delete event.context.projects[event.projectName].tsConfigFile
+    delete event.context.projects[event.projectName].tsConfigFileText
+    delete event.context.projects[event.projectName].tsConfigFileUri
   }
   if (helpers.isEnvFileEvent(event)) {
-    event.context.projects[event.projectName].envFile = undefined
-    event.context.projects[event.projectName].envFileParsed = undefined
-    event.context.projects[event.projectName].envFileText = undefined
-    event.context.projects[event.projectName].envFileUri = undefined
+    delete event.context.projects[event.projectName].envFile
+    delete event.context.projects[event.projectName].envFileParsed
+    delete event.context.projects[event.projectName].envFileText
+    delete event.context.projects[event.projectName].envFileUri
   }
 }
 
