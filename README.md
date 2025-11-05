@@ -26,7 +26,6 @@ The extension suggests the names of the variables that are present in the `env.j
 If your `config.ts` file contains a variable that is not present in the `env.jsonc` file, the extension will underline it as an error.
 ![Example](./resources/error_highlighting.png)
 
-<<<<<<< HEAD
 
 ### Highlighting of secrets missing a description
 
