@@ -1,13 +1,17 @@
 import * as vscode from 'vscode'
 import { ConfiguruEvent } from './event'
 import { helpers } from './helpers'
+import { ui } from './ui'
 
 export interface ConfiguruContext {
+  state: {
+    isConfigLoaded?: boolean
+  }
   projects: Record<string, ProjectContext>
   clean: (event: ConfiguruEvent) => void
   config: {
-    load: () => ConfiguruExtConfig
-    get: () => ConfiguruExtConfig
+    load: () => Promise<ConfiguruExtConfig>
+    get: () => Promise<ConfiguruExtConfig>
   }
 }
 
@@ -28,20 +32,57 @@ export type ConfiguruFeatureFlags = Partial<{
   highlightUnsafeDefaultValues: boolean
 }>
 
+export type ProjectPaths = Array<{ loader: string; envs: string[] }>
+
 export interface ConfiguruExtConfig {
   features: ConfiguruFeatureFlags
-  projectPaths: Array<{ path: string; projectName: string }>
+  projectPaths: ProjectPaths
   defaultConfigPath: string
+}
+
+const validatePaths = async (paths: any): Promise<ProjectPaths> => {
+  if (
+    !Array.isArray(paths) ||
+    paths.some(
+      path =>
+        typeof path !== 'object' ||
+        !path.loader ||
+        !path.envs ||
+        !Array.isArray(path.envs) ||
+        typeof path.loader !== 'string' ||
+        path.envs.some((env: any) => typeof env !== 'string')
+    )
+  ) {
+    throw new Error(
+      'Invalid config - paths must be array of { loader: string[], envs: string[] }'
+    )
+  }
+
+  let missingFile: string | undefined = undefined
+  for (const { loader, envs } of paths) {
+    for (const path of [loader, ...envs]) {
+      if (!(await helpers.fileExistsInWorkspace(path))) {
+        missingFile = path
+        break
+      }
+    }
+    if (missingFile) {
+      throw new Error(`Invalid config - file ${missingFile} does not exist`)
+    }
+  }
+  return paths
 }
 
 const DEFAULT_CONFIG_PATH = '.env.jsonc'
 
 let loadedConfig: ConfiguruExtConfig | undefined
+const state: ConfiguruContext['state'] = {}
 
-const load = (): ConfiguruExtConfig => {
+const load = async (): Promise<ConfiguruExtConfig> => {
   const vsCodeConfig = vscode.workspace.getConfiguration('configuru')
+
   loadedConfig = {
-    projectPaths: vsCodeConfig.get('paths') ?? [],
+    projectPaths: [],
     defaultConfigPath: DEFAULT_CONFIG_PATH,
     features: {
       suggestEnvVariables: vsCodeConfig.get(
@@ -63,11 +104,27 @@ const load = (): ConfiguruExtConfig => {
     },
   }
 
+  try {
+    loadedConfig.projectPaths = await validatePaths(
+      vsCodeConfig.get('paths') ?? []
+    )
+
+    if (state.isConfigLoaded === false) {
+      ui.notifications.info(`Configuru extension now successfully loaded`)
+      state.isConfigLoaded = true
+    }
+  } catch (error) {
+    state.isConfigLoaded = false
+    ui.notifications.error(
+      `Failed to load Configuru extension config: ${error.message}`
+    )
+  }
+
   return loadedConfig
 }
 
-const get = () => {
-  return loadedConfig ?? load()
+const get = async (): Promise<ConfiguruExtConfig> => {
+  return loadedConfig ?? (await load())
 }
 
 const clean = (event: ConfiguruEvent) => {
@@ -89,6 +146,7 @@ const clean = (event: ConfiguruEvent) => {
 }
 
 export const context: ConfiguruContext = {
+  state,
   projects: {},
   clean,
   config: {

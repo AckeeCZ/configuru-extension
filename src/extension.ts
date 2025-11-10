@@ -26,16 +26,17 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
       vscode.languages.createDiagnosticCollection(highlighter.name)
   })
 
-  context.config.load()
+  await context.config.load()
+
   suggestions.forEach(suggestion => {
     suggestionDisposables[suggestion.flag] = suggestion.register(vsCodeContext)
   })
 
-  vscode.workspace.onDidChangeConfiguration(event => {
+  vscode.workspace.onDidChangeConfiguration(async event => {
     if (!event.affectsConfiguration('configuru')) {
       return
     }
-    const config = context.config.load()
+    const config = await context.config.load()
 
     highlighters.forEach(highlighter => {
       if (
@@ -61,7 +62,7 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
   })
 
   vscode.workspace.onDidChangeTextDocument(async file => {
-    const config = context.config.get()
+    const config = await context.config.get()
     const { workspaceFolders } = vscode.workspace
 
     if (!workspaceFolders || workspaceFolders.length === 0) {

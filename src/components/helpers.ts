@@ -11,6 +11,31 @@ import {
   contextMethod,
 } from './event'
 
+const getFilePath = (relativePaths: string[] | string): vscode.Uri => {
+  const pathFragments = Array.isArray(relativePaths)
+    ? relativePaths
+    : [relativePaths]
+
+  const workspaceFolder = vscode.workspace.workspaceFolders?.[0]
+  if (!workspaceFolder) {
+    throw new Error('No workspace folder found')
+  }
+  const projectFolderUri = workspaceFolder.uri
+
+  return vscode.Uri.joinPath(projectFolderUri, ...pathFragments)
+}
+
+const fileExistsInWorkspace = async (
+  relativePaths: string[]
+): Promise<boolean> => {
+  try {
+    await vscode.workspace.fs.stat(getFilePath(relativePaths))
+    return true
+  } catch {
+    return false
+  }
+}
+
 const getDocumentText = (event: ConfiguruEvent): string => {
   return event.document.getText()
 }
@@ -43,35 +68,29 @@ const getTsConfigFileUri = (event: ConfiguruEvent): vscode.Uri => {
     return event.document.uri
   }
 
-  const projectFolderUri = event.workspaceFolders[0].uri
-
-  return vscode.Uri.joinPath(projectFolderUri, 'src', 'config.ts') // todo Make configurable
+  return getFilePath(['src', 'config.ts']) // todo make configurable
 }
 
-const getEnvFileUri = (event: ConfiguruEvent): vscode.Uri => {
+const getEnvFileUri = async (event: ConfiguruEvent): Promise<vscode.Uri> => {
   if (isEnvFileEvent(event)) {
     return event.document.uri
   }
-  const config = context.config.get()
+  const config = await context.config.get()
 
-  const projectFolderUri = event.workspaceFolders[0].uri
-  const projectFolder = event.workspaceFolders[0].name
+  const configUri = event.document.uri
 
-  const configPaths = config.projectPaths as Array<{
-    path: string
-    projectName: string
-  }>
-  const configPath = configPaths.find(p => p.projectName === projectFolder)
-  const envPath = configPath ? configPath.path : config.defaultConfigPath
+  const configPaths = config.projectPaths
+  const configPath = configPaths.find(p => p.loader === configUri.path)
+  const envPath = configPath ? configPath.envs[0] : config.defaultConfigPath // todo multiple envs
 
-  return vscode.Uri.joinPath(projectFolderUri, envPath)
+  return getFilePath([envPath])
 }
 
-const getEnvFileText = (event: ConfiguruEvent): Promise<string> => {
+const getEnvFileText = async (event: ConfiguruEvent): Promise<string> => {
   if (isEnvFileEvent(event)) {
     return Promise.resolve(getDocumentText(event))
   }
-  const uri = getEnvFileUri(event)
+  const uri = await getEnvFileUri(event)
   return readFile(uri)
 }
 
@@ -98,7 +117,7 @@ const getEnvFile = async (
     return Promise.resolve(event.document)
   }
 
-  const uri = getEnvFileUri(event)
+  const uri = await getEnvFileUri(event)
   return vscode.workspace.openTextDocument(uri)
 }
 
@@ -127,4 +146,5 @@ export const helpers = {
   },
   isTsConfigFileEvent,
   isEnvFileEvent,
+  fileExistsInWorkspace,
 }

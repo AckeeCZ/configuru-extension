@@ -118,7 +118,9 @@ export function contextMethod<
     }
 
     if (cacheKey in event.context.projects[event.projectName]) {
-      return event.context.projects[event.projectName][cacheKey] as EventContext[K]
+      return event.context.projects[event.projectName][
+        cacheKey
+      ] as EventContext[K]
     }
     const result = method(event, ...args)
 
@@ -128,7 +130,8 @@ export function contextMethod<
         return res
       }) as Promise<EventContext[K]>
     }
-    event.context.projects[event.projectName][cacheKey] = result as EventContext[K]
+    event.context.projects[event.projectName][cacheKey] =
+      result as EventContext[K]
 
     return result as EventContext[K]
   }) as F

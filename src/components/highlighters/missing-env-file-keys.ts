@@ -1,7 +1,7 @@
-import { HighlighterPort } from './highlighter.port'
-import { ConfiguruEventType } from '../event'
 import * as vscode from 'vscode'
+import { ConfiguruEventType } from '../event'
 import { helpers } from '../helpers'
+import { HighlighterPort } from './highlighter.port'
 
 export const missingEnvFileKeysHighlighter: HighlighterPort<ConfiguruEventType.TS_CONFIG_FILE_CHANGED> =
   {
@@ -12,8 +12,8 @@ export const missingEnvFileKeysHighlighter: HighlighterPort<ConfiguruEventType.T
       const diagnostics: vscode.Diagnostic[] = []
       const { document: tsConfigFile } = event
 
-      const envPath = helpers.envFile.getUri(event)
-      const [tsConfigText, envParsed] = await Promise.all([
+      const [envPath, tsConfigText, envParsed] = await Promise.all([
+        helpers.envFile.getUri(event),
         helpers.tsConfigFile.getText(event),
         helpers.envFile.getParsed(event),
       ])

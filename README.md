@@ -26,7 +26,6 @@ The extension suggests the names of the variables that are present in the `env.j
 If your `config.ts` file contains a variable that is not present in the `env.jsonc` file, the extension will underline it as an error.
 ![Example](./resources/error_highlighting.png)
 
-
 ### Highlighting of secrets missing a description
 
 🔧 `configuru.features.highlightSecretsMissingDescription`
@@ -43,12 +42,18 @@ If your `config.ts` file contains a hidden variable that is not an empty string 
 
 ### Specifying your env file
 
-If your config file has a different name than `env.jsonc`, or is located in a different path than the root directory, you can specify its name and relative path in the VSCode settings.json
+Configuru extension by default uses `.env.jsonc` and any `config.ts` file as a reference.
+If you have different file names, env files are located outside of root folder or you use multiple env files in one .ts file, you
+need to set file mapping in configuru settings.
+
+Following example shows how to run extension for file `src/config-manager.ts` using two env files `config/development.jsonc` and `config/stage.jsonc`
+
+> ⚠️ Best practice is to set this config for workspace only
 
 ```
-    "configuru.env.paths": [{
-        "path": "config/my-custom-config.jsonc",
-        "projectName": "my-project-with-custom-config"
+    "configuru.paths": [{
+        "loader": "src/config-manager.ts"
+        "envs": ["config/development.jsonc", "config/stage.jsonc"]
     }]
 ```
 
