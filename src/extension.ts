@@ -1,7 +1,8 @@
 import * as vscode from 'vscode'
-import { context } from './components/context'
+import { ConfiguruExtConfig, context } from './components/context'
 import {
   ConfiguruEvent,
+  ConfiguruFileAction,
   createConfiguruExtensionLoadedEvent,
   createConfiguruFileEvent,
 } from './components/event'
@@ -34,9 +35,13 @@ const getWorkspaceFolders = () => {
 
 const triggerEvent = async (event: ConfiguruEvent) => {
   const config = await context.config.get()
+  event.context.clean(event)
 
   for (const highlighter of highlighters) {
-    if (!isTriggeredByEvent(highlighter, event.type) || !config.features[highlighter.flag]) {
+    if (
+      !isTriggeredByEvent(highlighter, event.type) ||
+      !config.features[highlighter.flag]
+    ) {
       continue
     }
     const highlights = await highlighter.highlight(event, config)
@@ -46,14 +51,13 @@ const triggerEvent = async (event: ConfiguruEvent) => {
   }
 }
 
-const triggerExtensionLoaded = async () => {
+const triggerExtensionLoaded = async (config?: ConfiguruExtConfig) => {
   Object.values(diagnosticCollections).forEach(diagnostic => {
     diagnostic.clear()
   })
-  Object.values(suggestionDisposables).forEach(disposable => {
-    disposable.dispose()
-  })
-  await context.config.load()
+  if (!config) {
+    await context.config.load()
+  }
   const workspaceFolders = getWorkspaceFolders()
   if (!workspaceFolders) {
     return
@@ -63,16 +67,23 @@ const triggerExtensionLoaded = async () => {
     workspaceFolders
   )
 
-  context.clean(event)
   await triggerEvent(event)
 }
 
-const triggerFileEvent = async (file: vscode.TextDocument) => {
+const triggerFileEvent = async (
+  file: vscode.TextDocument,
+  action: ConfiguruFileAction
+) => {
   const workspaceFolders = getWorkspaceFolders()
   if (!workspaceFolders) {
     return
   }
-  const event = await createConfiguruFileEvent(file, context, workspaceFolders)
+  const event = await createConfiguruFileEvent(
+    file,
+    context,
+    workspaceFolders,
+    action
+  )
 
   if (!event) {
     return
@@ -106,10 +117,10 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
   const config = await context.config.load()
 
   suggestions.forEach(suggestion => {
-    suggestionDisposables[suggestion.flag] = suggestion.register(
-      config,
-      vsCodeContext
-    )
+    if (config.features[suggestion.flag]) {
+      suggestionDisposables[suggestion.flag] =
+        suggestion.register(vsCodeContext)
+    }
   })
 
   vscode.workspace.onDidChangeConfiguration(async event => {
@@ -134,21 +145,19 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
         suggestionDisposables[suggestion.flag].dispose()
       }
       if (config.features[suggestion.flag]) {
-        suggestionDisposables[suggestion.flag] = suggestion.register(
-          config,
-          vsCodeContext
-        )
+        suggestionDisposables[suggestion.flag] =
+          suggestion.register(vsCodeContext)
       }
     })
-    await triggerExtensionLoaded()
+    await triggerExtensionLoaded(config)
   })
 
   vscode.workspace.onDidChangeTextDocument(async event => {
-    await triggerFileEvent(event.document)
+    await triggerFileEvent(event.document, ConfiguruFileAction.Changed)
   })
 
   vscode.workspace.onDidOpenTextDocument(async file => {
-    await triggerFileEvent(file)
+    await triggerFileEvent(file, ConfiguruFileAction.Opened)
   })
   vscode.workspace.onDidRenameFiles(async event => {
     await triggerFilesMovedEvent([

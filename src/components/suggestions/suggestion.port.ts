@@ -1,10 +1,7 @@
 import * as vscode from 'vscode'
-import { ConfiguruExtConfig, ConfiguruFeatureFlags } from '../context'
+import { ConfiguruFeatureFlags } from '../context'
 
 export interface SuggestionPort {
   flag: keyof ConfiguruFeatureFlags
-  register: (
-    config: ConfiguruExtConfig,
-    vsCodeContext: vscode.ExtensionContext
-  ) => vscode.Disposable
+  register: (vsCodeContext: vscode.ExtensionContext) => vscode.Disposable
 }
