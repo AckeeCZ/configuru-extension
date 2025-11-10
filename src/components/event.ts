@@ -2,11 +2,16 @@ import * as vscode from 'vscode'
 import { ConfiguruContext, ConfigPaths } from './context'
 
 export enum ConfiguruEventType {
-  EXTENSION_LOADED = 'extensionLoaded',
-  ENV_FILE_CHANGED = 'envFileChanged',
-  ENV_FILE_OPENED = 'envFileOpened',
-  TS_CONFIG_FILE_CHANGED = 'tsConfigFileChanged',
-  TS_CONFIG_FILE_OPENED = 'configFileOpened',
+  ExtensionLoaded = 'extensionLoaded',
+  EnvFileChanged = 'envFileChanged',
+  EnvFileOpened = 'envFileOpened',
+  TsConfigFileChanged = 'tsConfigFileChanged',
+  TsConfigFileOpened = 'configFileOpened',
+}
+
+export enum ConfiguruFileAction {
+  Changed = 'changed',
+  Opened = 'opened',
 }
 
 export interface BaseEvent {
@@ -21,23 +26,23 @@ export interface FileEvent extends BaseEvent {
 }
 
 export interface ExtensionLoadedEvent extends BaseEvent {
-  type: ConfiguruEventType.EXTENSION_LOADED
+  type: ConfiguruEventType.ExtensionLoaded
 }
 
 export interface EnvFileChangedEvent extends FileEvent {
-  type: ConfiguruEventType.ENV_FILE_CHANGED
+  type: ConfiguruEventType.EnvFileChanged
 }
 
 export interface ConfigFileChangedEvent extends FileEvent {
-  type: ConfiguruEventType.TS_CONFIG_FILE_CHANGED
+  type: ConfiguruEventType.TsConfigFileChanged
 }
 
 export interface EnvFileOpenedEvent extends FileEvent {
-  type: ConfiguruEventType.ENV_FILE_OPENED
+  type: ConfiguruEventType.EnvFileOpened
 }
 
 export interface ConfigFileOpenedEvent extends FileEvent {
-  type: ConfiguruEventType.TS_CONFIG_FILE_OPENED
+  type: ConfiguruEventType.TsConfigFileOpened
 }
 
 export type ConfiguruEvent =
@@ -61,8 +66,8 @@ export const isTsConfigFileEvent = (
   event: ConfiguruEventWithoutRelatedPaths
 ): event is ConfigFileChangedEvent | ConfigFileOpenedEvent => {
   return (
-    event.type === ConfiguruEventType.TS_CONFIG_FILE_CHANGED ||
-    event.type === ConfiguruEventType.TS_CONFIG_FILE_OPENED
+    event.type === ConfiguruEventType.TsConfigFileChanged ||
+    event.type === ConfiguruEventType.TsConfigFileOpened
   )
 }
 
@@ -70,8 +75,8 @@ export const isEnvFileEvent = (
   event: ConfiguruEventWithoutRelatedPaths
 ): event is EnvFileChangedEvent | EnvFileOpenedEvent => {
   return (
-    event.type === ConfiguruEventType.ENV_FILE_CHANGED ||
-    event.type === ConfiguruEventType.ENV_FILE_OPENED
+    event.type === ConfiguruEventType.EnvFileChanged ||
+    event.type === ConfiguruEventType.EnvFileOpened
   )
 }
 
@@ -79,15 +84,14 @@ const getEventRelatedTsFiles = async (
   event: ConfiguruEventWithoutRelatedPaths
 ) => {
   if (isTsConfigFileEvent(event)) {
-    return [vscode.workspace.asRelativePath(event.document.uri)]
+    return [event.filePath]
   }
   const config = await event.context.config.get()
   const configPaths = config.configPaths
 
   if (isEnvFileEvent(event)) {
-    const relativePath = vscode.workspace.asRelativePath(event.document.uri)
     const relatedPaths = configPaths.filter(p =>
-      p.envs.some(env => env === relativePath)
+      p.envs.some(env => env === event.filePath)
     )
     return relatedPaths.map(p => p.loader)
   }
@@ -134,7 +138,7 @@ export const createConfiguruExtensionLoadedEvent = (
   workspaceFolders: readonly vscode.WorkspaceFolder[]
 ): Promise<ExtensionLoadedEvent> => {
   return addRelatedPaths({
-    type: ConfiguruEventType.EXTENSION_LOADED,
+    type: ConfiguruEventType.ExtensionLoaded,
     ...createBaseEvent(context, workspaceFolders),
   } satisfies Omit<ExtensionLoadedEvent, 'relatedPaths'>)
 }
@@ -142,28 +146,44 @@ export const createConfiguruExtensionLoadedEvent = (
 export const createConfiguruFileEvent = async (
   file: vscode.TextDocument,
   context: ConfiguruContext,
-  workspaceFolders: readonly vscode.WorkspaceFolder[]
+  workspaceFolders: readonly vscode.WorkspaceFolder[],
+  action: ConfiguruFileAction
 ) => {
+  const relativePath = vscode.workspace.asRelativePath(file.uri)
+
   const baseEvent = {
     ...createBaseEvent(context, workspaceFolders),
-    filePath: file.fileName,
+    filePath: relativePath,
     document: file,
   } satisfies Omit<FileEvent, 'relatedPaths'>
 
-  switch (true) {
-    // TODO do filename configurable by user
-    case file.fileName.endsWith('/config.ts'):
-      return addRelatedPaths({
-        type: ConfiguruEventType.TS_CONFIG_FILE_CHANGED,
-        ...baseEvent,
-      } satisfies Omit<ConfigFileChangedEvent, 'relatedPaths'>)
-    // TODO do filename configurable by user
-    case file.uri.path.endsWith('.env.jsonc'):
-      return addRelatedPaths({
-        type: ConfiguruEventType.ENV_FILE_CHANGED,
-        ...baseEvent,
-      } satisfies Omit<EnvFileChangedEvent, 'relatedPaths'>)
-    default:
-      return null
+  const config = await context.config.get()
+  const configPaths = config.configPaths
+  const isTsConfigFile = configPaths.some(p => p.loader === relativePath)
+  const isEnvFile = configPaths.some(p =>
+    p.envs.some(env => env === relativePath)
+  )
+
+  if (isTsConfigFile) {
+    return addRelatedPaths({
+      type:
+        action === ConfiguruFileAction.Changed
+          ? ConfiguruEventType.TsConfigFileChanged
+          : ConfiguruEventType.TsConfigFileOpened,
+      ...baseEvent,
+    } satisfies Omit<
+      ConfigFileChangedEvent | ConfigFileOpenedEvent,
+      'relatedPaths'
+    >)
   }
+  if (isEnvFile) {
+    return addRelatedPaths({
+      type:
+        action === ConfiguruFileAction.Changed
+          ? ConfiguruEventType.EnvFileChanged
+          : ConfiguruEventType.EnvFileOpened,
+      ...baseEvent,
+    } satisfies Omit<EnvFileChangedEvent | EnvFileOpenedEvent, 'relatedPaths'>)
+  }
+  return null
 }

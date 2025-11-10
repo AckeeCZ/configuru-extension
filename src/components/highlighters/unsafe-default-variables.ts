@@ -58,20 +58,20 @@ const getTsFileDiagnostics = (
 }
 
 export const unsafeDefaultVariablesHighlighter: HighlighterPort<
-  | ConfiguruEventType.TS_CONFIG_FILE_CHANGED
-  | ConfiguruEventType.TS_CONFIG_FILE_OPENED
-  | ConfiguruEventType.ENV_FILE_OPENED
-  | ConfiguruEventType.ENV_FILE_CHANGED
-  | ConfiguruEventType.EXTENSION_LOADED
+  | ConfiguruEventType.TsConfigFileChanged
+  | ConfiguruEventType.TsConfigFileOpened
+  | ConfiguruEventType.EnvFileOpened
+  | ConfiguruEventType.EnvFileChanged
+  | ConfiguruEventType.ExtensionLoaded
 > = {
   name: 'unsafe-default-variables',
   flag: 'highlightUnsafeDefaultValues',
   triggers: [
-    ConfiguruEventType.TS_CONFIG_FILE_CHANGED,
-    ConfiguruEventType.TS_CONFIG_FILE_OPENED,
-    ConfiguruEventType.ENV_FILE_OPENED,
-    ConfiguruEventType.ENV_FILE_CHANGED,
-    ConfiguruEventType.EXTENSION_LOADED,
+    ConfiguruEventType.TsConfigFileChanged,
+    ConfiguruEventType.TsConfigFileOpened,
+    ConfiguruEventType.EnvFileOpened,
+    ConfiguruEventType.EnvFileChanged,
+    ConfiguruEventType.ExtensionLoaded,
   ],
   highlight: async event => {
     const { relatedPaths } = event

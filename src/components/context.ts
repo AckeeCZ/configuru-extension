@@ -1,12 +1,7 @@
 import * as vscode from 'vscode'
-import {
-  ConfiguruEvent,
-  ConfiguruEventType,
-  isEnvFileEvent,
-  isTsConfigFileEvent,
-} from './event'
-import { ui } from './ui'
+import { ConfiguruEvent, ConfiguruEventType } from './event'
 import { helpers } from './helpers'
+import { ui } from './ui'
 
 export interface ConfiguruContext {
   state: {
@@ -127,10 +122,12 @@ const load = async (): Promise<ConfiguruExtConfig> => {
       state.isConfigLoaded = true
     }
   } catch (error) {
-    state.isConfigLoaded = false
-    ui.notifications.error(
-      `Error loading Configuru Ext config: ${error.message}`
-    )
+    if (state.isConfigLoaded === true) {
+      state.isConfigLoaded = false
+      ui.notifications.error(
+        `Error loading Configuru Ext config: ${error.message}`
+      )
+    }
   }
 
   return loadedConfig
@@ -147,7 +144,7 @@ const deleteFileCache = (event: ConfiguruEvent, fileName: string) => {
 }
 
 const clean = (event?: ConfiguruEvent) => {
-  if (!event || event.type === ConfiguruEventType.EXTENSION_LOADED) {
+  if (!event || event.type === ConfiguruEventType.ExtensionLoaded) {
     const contextCache = event?.context.cache ?? cache
     contextCache.files.clear()
     contextCache.fileTexts.clear()
@@ -155,7 +152,12 @@ const clean = (event?: ConfiguruEvent) => {
     contextCache.fileUris.clear()
     return
   }
-  if (isTsConfigFileEvent(event) || isEnvFileEvent(event)) {
+  if (
+    [
+      ConfiguruEventType.TsConfigFileChanged,
+      ConfiguruEventType.EnvFileChanged,
+    ].includes(event.type)
+  ) {
     deleteFileCache(event, vscode.workspace.asRelativePath(event.document.uri))
   }
 }

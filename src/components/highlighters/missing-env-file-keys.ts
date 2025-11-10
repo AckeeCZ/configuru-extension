@@ -75,18 +75,18 @@ const getTsFileDiagnostics = (
 }
 
 export const missingEnvFileKeysHighlighter: HighlighterPort<
-  | ConfiguruEventType.TS_CONFIG_FILE_CHANGED
-  | ConfiguruEventType.TS_CONFIG_FILE_OPENED
-  | ConfiguruEventType.ENV_FILE_OPENED
-  | ConfiguruEventType.EXTENSION_LOADED
+  | ConfiguruEventType.TsConfigFileChanged
+  | ConfiguruEventType.TsConfigFileOpened
+  | ConfiguruEventType.EnvFileOpened
+  | ConfiguruEventType.ExtensionLoaded
 > = {
   name: 'missing-env-file-keys',
   flag: 'highlightInvalidVariables',
   triggers: [
-    ConfiguruEventType.TS_CONFIG_FILE_CHANGED,
-    ConfiguruEventType.TS_CONFIG_FILE_OPENED,
-    ConfiguruEventType.ENV_FILE_OPENED,
-    ConfiguruEventType.EXTENSION_LOADED,
+    ConfiguruEventType.TsConfigFileChanged,
+    ConfiguruEventType.TsConfigFileOpened,
+    ConfiguruEventType.EnvFileOpened,
+    ConfiguruEventType.ExtensionLoaded,
   ],
   highlight: async event => {
     const allFilesDiagnostics: Highlight[] = []

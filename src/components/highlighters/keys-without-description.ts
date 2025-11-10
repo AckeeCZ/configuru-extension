@@ -60,16 +60,16 @@ const getEnvFileDiagnostics = (
 }
 
 export const keysWithoutDescriptionHighlighter: HighlighterPort<
-  | ConfiguruEventType.ENV_FILE_CHANGED
-  | ConfiguruEventType.ENV_FILE_OPENED
-  | ConfiguruEventType.EXTENSION_LOADED
+  | ConfiguruEventType.EnvFileChanged
+  | ConfiguruEventType.EnvFileOpened
+  | ConfiguruEventType.ExtensionLoaded
 > = {
   name: 'keys-without-description',
   flag: 'highlightSecretsMissingDescription',
   triggers: [
-    ConfiguruEventType.ENV_FILE_CHANGED,
-    ConfiguruEventType.ENV_FILE_OPENED,
-    ConfiguruEventType.EXTENSION_LOADED,
+    ConfiguruEventType.EnvFileChanged,
+    ConfiguruEventType.EnvFileOpened,
+    ConfiguruEventType.ExtensionLoaded,
   ],
   highlight: async event => {
     const relatedEnvs = event.relatedPaths.flatMap(p => p.envs)
