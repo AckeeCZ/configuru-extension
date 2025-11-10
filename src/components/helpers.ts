@@ -43,10 +43,10 @@ const readFile = async (uri: vscode.Uri): Promise<string> => {
 }
 
 const getFileUri = (event: ConfiguruEvent, fileName: string): vscode.Uri => {
-  if (isTsConfigFileEvent(event) && fileName === event.document.uri.fsPath) {
+  if (isTsConfigFileEvent(event) && fileName === event.filePath) {
     return event.document.uri
   }
-  if (isEnvFileEvent(event) && fileName === event.document.uri.fsPath) {
+  if (isEnvFileEvent(event) && fileName === event.filePath) {
     return event.document.uri
   }
   return getFilePath(fileName)
@@ -56,10 +56,10 @@ const getFileText = async (
   event: ConfiguruEvent,
   fileName: string
 ): Promise<string> => {
-  if (isEnvFileEvent(event) && event.document.uri.fsPath === fileName) {
+  if (isEnvFileEvent(event) && fileName === event.filePath) {
     return Promise.resolve(getDocumentText(event))
   }
-  if (isTsConfigFileEvent(event) && fileName === event.document.uri.fsPath) {
+  if (isTsConfigFileEvent(event) && fileName === event.filePath) {
     return Promise.resolve(getDocumentText(event))
   }
   const uri = getFileUri(event, fileName)
@@ -79,10 +79,10 @@ const getFiles = async (
   event: ConfiguruEvent,
   fileName: string
 ): Promise<vscode.TextDocument> => {
-  if (isTsConfigFileEvent(event) && event.document.uri.fsPath === fileName) {
+  if (isTsConfigFileEvent(event) && event.filePath === fileName) {
     return Promise.resolve(event.document)
   }
-  if (isEnvFileEvent(event) && event.document.uri.fsPath === fileName) {
+  if (isEnvFileEvent(event) && event.filePath === fileName) {
     return Promise.resolve(event.document)
   }
   const uri = getFileUri(event, fileName)
