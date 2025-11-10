@@ -1,7 +1,8 @@
 import * as vscode from 'vscode'
-import { ConfiguruContext } from './context'
+import { ConfiguruContext, ConfigPaths } from './context'
 
 export enum ConfiguruEventType {
+  EXTENSION_LOADED = 'extensionLoaded',
   ENV_FILE_CHANGED = 'envFileChanged',
   ENV_FILE_OPENED = 'envFileOpened',
   TS_CONFIG_FILE_CHANGED = 'tsConfigFileChanged',
@@ -9,14 +10,18 @@ export enum ConfiguruEventType {
 }
 
 export interface BaseEvent {
-  projectName: string
   workspaceFolders: readonly vscode.WorkspaceFolder[]
+  relatedPaths: ConfigPaths
   context: ConfiguruContext
 }
 
 export interface FileEvent extends BaseEvent {
   filePath: string
   document: vscode.TextDocument
+}
+
+export interface ExtensionLoadedEvent extends BaseEvent {
+  type: ConfiguruEventType.EXTENSION_LOADED
 }
 
 export interface EnvFileChangedEvent extends FileEvent {
@@ -40,99 +45,125 @@ export type ConfiguruEvent =
   | ConfigFileChangedEvent
   | EnvFileOpenedEvent
   | ConfigFileOpenedEvent
+  | ExtensionLoadedEvent
 
 export type ConfiguruEventOf<T extends ConfiguruEventType> = Extract<
   ConfiguruEvent,
   { type: T }
 >
 
-// Given a union of event types (e.g. A | B), produce the union of corresponding events
+export type ConfiguruEventWithoutRelatedPaths = Omit<
+  ConfiguruEvent,
+  'relatedPaths'
+>
+
+export const isTsConfigFileEvent = (
+  event: ConfiguruEventWithoutRelatedPaths
+): event is ConfigFileChangedEvent | ConfigFileOpenedEvent => {
+  return (
+    event.type === ConfiguruEventType.TS_CONFIG_FILE_CHANGED ||
+    event.type === ConfiguruEventType.TS_CONFIG_FILE_OPENED
+  )
+}
+
+export const isEnvFileEvent = (
+  event: ConfiguruEventWithoutRelatedPaths
+): event is EnvFileChangedEvent | EnvFileOpenedEvent => {
+  return (
+    event.type === ConfiguruEventType.ENV_FILE_CHANGED ||
+    event.type === ConfiguruEventType.ENV_FILE_OPENED
+  )
+}
+
+const getEventRelatedTsFiles = async (
+  event: ConfiguruEventWithoutRelatedPaths
+) => {
+  if (isTsConfigFileEvent(event)) {
+    return [vscode.workspace.asRelativePath(event.document.uri)]
+  }
+  const config = await event.context.config.get()
+  const configPaths = config.configPaths
+
+  if (isEnvFileEvent(event)) {
+    const relativePath = vscode.workspace.asRelativePath(event.document.uri)
+    const relatedPaths = configPaths.filter(p =>
+      p.envs.some(env => env === relativePath)
+    )
+    return relatedPaths.map(p => p.loader)
+  }
+
+  // No specified file meaning all files are related to this event
+  return configPaths.map(p => p.loader)
+}
+
+export const getEventRelatedPaths = async (
+  event: ConfiguruEventWithoutRelatedPaths
+) => {
+  const config = await event.context.config.get()
+  const configPaths = config.configPaths
+  const tsConfigPaths = await getEventRelatedTsFiles(event)
+  return configPaths.filter(p => tsConfigPaths.includes(p.loader))
+}
+
+const addRelatedPaths = async <Event extends ConfiguruEventWithoutRelatedPaths>(
+  event: Event
+): Promise<Event & Pick<ConfiguruEvent, 'relatedPaths'>> => {
+  return {
+    ...event,
+    relatedPaths: await getEventRelatedPaths(event),
+  }
+}
+
 export type ConfiguruEventsOf<TTypes extends ConfiguruEventType> = Extract<
   ConfiguruEvent,
   { type: TTypes }
 >
 
-export const createConfiguruFileChangedEvent = (
+const createBaseEvent = (
+  context: ConfiguruContext,
+  workspaceFolders: readonly vscode.WorkspaceFolder[]
+): Omit<BaseEvent, 'relatedPaths'> => {
+  return {
+    context,
+    workspaceFolders,
+  }
+}
+
+export const createConfiguruExtensionLoadedEvent = (
+  context: ConfiguruContext,
+  workspaceFolders: readonly vscode.WorkspaceFolder[]
+): Promise<ExtensionLoadedEvent> => {
+  return addRelatedPaths({
+    type: ConfiguruEventType.EXTENSION_LOADED,
+    ...createBaseEvent(context, workspaceFolders),
+  } satisfies Omit<ExtensionLoadedEvent, 'relatedPaths'>)
+}
+
+export const createConfiguruFileEvent = async (
   file: vscode.TextDocument,
   context: ConfiguruContext,
   workspaceFolders: readonly vscode.WorkspaceFolder[]
 ) => {
-  const projectName = workspaceFolders[0].name
-
   const baseEvent = {
-    context,
-    projectName,
+    ...createBaseEvent(context, workspaceFolders),
     filePath: file.fileName,
     document: file,
-    workspaceFolders,
-  } satisfies FileEvent
+  } satisfies Omit<FileEvent, 'relatedPaths'>
 
   switch (true) {
     // TODO do filename configurable by user
     case file.fileName.endsWith('/config.ts'):
-      return {
+      return addRelatedPaths({
         type: ConfiguruEventType.TS_CONFIG_FILE_CHANGED,
         ...baseEvent,
-      } satisfies ConfigFileChangedEvent
+      } satisfies Omit<ConfigFileChangedEvent, 'relatedPaths'>)
     // TODO do filename configurable by user
     case file.uri.path.endsWith('.env.jsonc'):
-      return {
+      return addRelatedPaths({
         type: ConfiguruEventType.ENV_FILE_CHANGED,
         ...baseEvent,
-      } satisfies EnvFileChangedEvent
+      } satisfies Omit<EnvFileChangedEvent, 'relatedPaths'>)
     default:
       return null
   }
-}
-
-type EventContext = ConfiguruContext['projects'][string]
-type EventContextValue<K extends keyof EventContext> = Required<EventContext>[K]
-
-export function contextMethod<
-  K extends keyof EventContext,
-  A extends unknown[],
->(
-  method: (event: ConfiguruEvent, ...args: A) => Promise<EventContextValue<K>>,
-  cacheKey: K
-): (event: ConfiguruEvent, ...args: A) => Promise<EventContextValue<K>>
-
-export function contextMethod<
-  K extends keyof EventContext,
-  A extends unknown[],
->(
-  method: (event: ConfiguruEvent, ...args: A) => EventContextValue<K>,
-  cacheKey: K
-): (event: ConfiguruEvent, ...args: A) => EventContextValue<K>
-
-export function contextMethod<
-  K extends keyof EventContext,
-  F extends (
-    event: ConfiguruEvent,
-    ...args: any[]
-  ) => EventContextValue<K> | Promise<EventContextValue<K>>,
->(method: F, cacheKey: K): F {
-  // eslint-disable-next-line sonarjs/function-return-type
-  return ((event: ConfiguruEvent, ...args: any[]) => {
-    if (!(event.projectName in event.context.projects)) {
-      event.context.projects[event.projectName] = {}
-    }
-
-    if (cacheKey in event.context.projects[event.projectName]) {
-      return event.context.projects[event.projectName][
-        cacheKey
-      ] as EventContext[K]
-    }
-    const result = method(event, ...args)
-
-    if (result && typeof (result as any).then === 'function') {
-      return (result as Promise<any>).then((res: EventContext[K]) => {
-        event.context.projects[event.projectName][cacheKey] = res
-        return res
-      }) as Promise<EventContext[K]>
-    }
-    event.context.projects[event.projectName][cacheKey] =
-      result as EventContext[K]
-
-    return result as EventContext[K]
-  }) as F
 }

@@ -1,14 +1,11 @@
 import * as jsonParser from 'jsonc-parser'
 import * as vscode from 'vscode'
-import { context } from './context'
+import type { ConfiguruCacheValue, ContextCache } from './context'
 import {
-  ConfigFileChangedEvent,
-  ConfigFileOpenedEvent,
   ConfiguruEvent,
-  ConfiguruEventType,
-  EnvFileChangedEvent,
-  EnvFileOpenedEvent,
-  contextMethod,
+  FileEvent,
+  isEnvFileEvent,
+  isTsConfigFileEvent,
 } from './event'
 
 const getFilePath = (relativePaths: string[] | string): vscode.Uri => {
@@ -36,26 +33,8 @@ const fileExistsInWorkspace = async (
   }
 }
 
-const getDocumentText = (event: ConfiguruEvent): string => {
+const getDocumentText = (event: FileEvent): string => {
   return event.document.getText()
-}
-
-const isTsConfigFileEvent = (
-  event: ConfiguruEvent
-): event is ConfigFileChangedEvent | ConfigFileOpenedEvent => {
-  return (
-    event.type === ConfiguruEventType.TS_CONFIG_FILE_CHANGED ||
-    event.type === ConfiguruEventType.TS_CONFIG_FILE_OPENED
-  )
-}
-
-const isEnvFileEvent = (
-  event: ConfiguruEvent
-): event is EnvFileChangedEvent | EnvFileOpenedEvent => {
-  return (
-    event.type === ConfiguruEventType.ENV_FILE_CHANGED ||
-    event.type === ConfiguruEventType.ENV_FILE_OPENED
-  )
 }
 
 const readFile = async (uri: vscode.Uri): Promise<string> => {
@@ -63,88 +42,93 @@ const readFile = async (uri: vscode.Uri): Promise<string> => {
   return Buffer.from(text).toString('utf8')
 }
 
-const getTsConfigFileUri = (event: ConfiguruEvent): vscode.Uri => {
-  if (isTsConfigFileEvent(event)) {
+const getFileUri = (event: ConfiguruEvent, fileName: string): vscode.Uri => {
+  if (isTsConfigFileEvent(event) && fileName === event.document.uri.fsPath) {
     return event.document.uri
   }
-
-  return getFilePath(['src', 'config.ts']) // todo make configurable
-}
-
-const getEnvFileUri = async (event: ConfiguruEvent): Promise<vscode.Uri> => {
-  if (isEnvFileEvent(event)) {
+  if (isEnvFileEvent(event) && fileName === event.document.uri.fsPath) {
     return event.document.uri
   }
-  const config = await context.config.get()
-
-  const configUri = event.document.uri
-
-  const configPaths = config.projectPaths
-  const configPath = configPaths.find(p => p.loader === configUri.path)
-  const envPath = configPath ? configPath.envs[0] : config.defaultConfigPath // todo multiple envs
-
-  return getFilePath([envPath])
+  return getFilePath(fileName)
 }
 
-const getEnvFileText = async (event: ConfiguruEvent): Promise<string> => {
-  if (isEnvFileEvent(event)) {
+const getFileText = async (
+  event: ConfiguruEvent,
+  fileName: string
+): Promise<string> => {
+  if (isEnvFileEvent(event) && event.document.uri.fsPath === fileName) {
     return Promise.resolve(getDocumentText(event))
   }
-  const uri = await getEnvFileUri(event)
-  return readFile(uri)
-}
-
-const getTsConfigFileText = (event: ConfiguruEvent): Promise<string> => {
-  if (isTsConfigFileEvent(event)) {
+  if (isTsConfigFileEvent(event) && fileName === event.document.uri.fsPath) {
     return Promise.resolve(getDocumentText(event))
   }
-  const uri = getTsConfigFileUri(event)
+  const uri = getFileUri(event, fileName)
   return readFile(uri)
 }
 
 const getEnvFileParsed = async (
-  event: ConfiguruEvent
+  event: ConfiguruEvent,
+  fileName: string
 ): Promise<Record<string, any>> => {
   const errors: jsonParser.ParseError[] = []
-  const text = await getEnvFileText(event)
-  return jsonParser.parse(text, errors)
+  const texts = await getFileText(event, fileName)
+  return jsonParser.parse(texts, errors)
 }
 
-const getEnvFile = async (
-  event: ConfiguruEvent
+const getFiles = async (
+  event: ConfiguruEvent,
+  fileName: string
 ): Promise<vscode.TextDocument> => {
-  if (isEnvFileEvent(event)) {
+  if (isTsConfigFileEvent(event) && event.document.uri.fsPath === fileName) {
     return Promise.resolve(event.document)
   }
-
-  const uri = await getEnvFileUri(event)
+  if (isEnvFileEvent(event) && event.document.uri.fsPath === fileName) {
+    return Promise.resolve(event.document)
+  }
+  const uri = getFileUri(event, fileName)
   return vscode.workspace.openTextDocument(uri)
 }
 
-const getTsConfigFile = async (
-  event: ConfiguruEvent
-): Promise<vscode.TextDocument> => {
-  if (isTsConfigFileEvent(event)) {
-    return Promise.resolve(event.document)
+const contextDataloader =
+  <
+    Key extends keyof ContextCache,
+    Fn extends (
+      event: ConfiguruEvent,
+      fileName: string
+    ) => Promise<ConfiguruCacheValue<Key>> | ConfiguruCacheValue<Key>,
+  >(
+    fn: Fn,
+    key: Key
+  ): ((
+    event: ConfiguruEvent,
+    fileNames: string[]
+  ) => Promise<ConfiguruCacheValue<Key>[]>) =>
+  async (event: ConfiguruEvent, fileNames: string[]) => {
+    const cache = event.context.cache[key] as Map<
+      string,
+      ConfiguruCacheValue<Key>
+    >
+    return Promise.all(
+      fileNames.map(fileName => {
+        const data = cache.get(fileName)
+        if (data) {
+          return Promise.resolve(data)
+        }
+        return (async () => {
+          const data = await fn(event, fileName)
+          cache.set(fileName, data)
+          return data
+        })()
+      })
+    )
   }
-
-  const uri = getTsConfigFileUri(event)
-  return vscode.workspace.openTextDocument(uri)
-}
 
 export const helpers = {
-  envFile: {
-    getText: contextMethod(getEnvFileText, 'envFileText'),
-    getUri: contextMethod(getEnvFileUri, 'envFileUri'),
-    getParsed: contextMethod(getEnvFileParsed, 'envFileParsed'),
-    getFile: contextMethod(getEnvFile, 'envFile'),
-  },
-  tsConfigFile: {
-    getFile: contextMethod(getTsConfigFile, 'tsConfigFile'),
-    getText: contextMethod(getTsConfigFileText, 'tsConfigFileText'),
-    getUri: contextMethod(getTsConfigFileUri, 'tsConfigFileUri'),
-  },
-  isTsConfigFileEvent,
-  isEnvFileEvent,
   fileExistsInWorkspace,
+  events: {
+    getFileTexts: contextDataloader(getFileText, 'fileTexts'),
+    getFileUris: contextDataloader(getFileUri, 'fileUris'),
+    getFiles: contextDataloader(getFiles, 'files'),
+    getEnvFilesParsed: contextDataloader(getEnvFileParsed, 'fileParsed'),
+  },
 }

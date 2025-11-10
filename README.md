@@ -42,7 +42,7 @@ If your `config.ts` file contains a hidden variable that is not an empty string 
 
 ### Specifying your env file
 
-Configuru extension by default uses `.env.jsonc` and any `config.ts` file as a reference.
+Configuru extension by default uses `.env.jsonc` and `src/config.ts` file as a reference.
 If you have different file names, env files are located outside of root folder or you use multiple env files in one .ts file, you
 need to set file mapping in configuru settings.
 
