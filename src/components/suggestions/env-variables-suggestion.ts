@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import { SuggestionPort } from './suggestion.port'
-import { createConfiguruFileChangedEvent } from '../event'
+import { ConfiguruFileAction, createConfiguruFileEvent } from '../event'
 import { context } from '../context'
 import { helpers } from '../helpers'
 
@@ -24,10 +24,11 @@ const matchMultipleLines = (
 
 export const envVariablesSuggestion: SuggestionPort = {
   flag: 'suggestEnvVariables',
-  register: () =>
-    vscode.languages.registerCompletionItemProvider(
-      // TODO do filename config.ts configurable by user
-      { language: 'typescript', pattern: '**/config.ts' },
+  register: (_vsCodeContext: vscode.ExtensionContext) => {
+    return vscode.languages.registerCompletionItemProvider(
+      {
+        language: 'typescript',
+      },
       {
         async provideCompletionItems(
           document: vscode.TextDocument,
@@ -37,18 +38,31 @@ export const envVariablesSuggestion: SuggestionPort = {
           if (!workspaceFolders || workspaceFolders.length === 0) {
             return // No env config
           }
-          const event = createConfiguruFileChangedEvent(
+
+          const config = await context.config.get()
+          const loaderPaths = config.configPaths.map(p => p.loader)
+          const relativePath = vscode.workspace.asRelativePath(document.uri)
+
+          if (!loaderPaths.includes(relativePath)) {
+            return
+          }
+
+          const event = await createConfiguruFileEvent(
             document,
             context,
-            workspaceFolders
+            workspaceFolders,
+            ConfiguruFileAction.Changed
           )
           if (!event) {
             // Not a valid file edited
             return
           }
           context.clean(event)
-          
-          const dotEnvFile = await helpers.envFile.getParsed(event)
+
+          const envs = event.relatedPaths.flatMap(p => p.envs)
+          const envsParsed = await helpers.events.getEnvFilesParsed(event, envs)
+          const keys = envsParsed.map(p => Object.keys(p))
+
           const linePrefix = document
             .lineAt(position)
             .text.slice(0, position.character)
@@ -64,18 +78,22 @@ export const envVariablesSuggestion: SuggestionPort = {
             return undefined
           }
 
-          return Object.keys(dotEnvFile).map(c => {
-            return new vscode.CompletionItem(
-              {
-                label: c,
-                description: 'configuru',
-              },
-              vscode.CompletionItemKind.Value
-            )
-          })
+          return keys.flatMap((configKeys, i) =>
+            configKeys.map(c => {
+              return new vscode.CompletionItem(
+                {
+                  label: c,
+                  description: 'Configuru',
+                  detail: ` ${envs[i]}`,
+                },
+                vscode.CompletionItemKind.Value
+              )
+            })
+          )
         },
       },
       '"',
       "'"
-    ),
+    )
+  },
 }

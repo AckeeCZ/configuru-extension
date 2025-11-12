@@ -1,24 +1,25 @@
 import * as vscode from 'vscode'
-import { ConfiguruEvent } from './event'
+import { ConfiguruEvent, ConfiguruEventType } from './event'
 import { helpers } from './helpers'
+import { ui } from './ui'
 
 export interface ConfiguruContext {
-  projects: Record<string, ProjectContext>
-  clean: (event: ConfiguruEvent) => void
+  state: {
+    isConfigLoaded?: boolean
+  }
+  cache: ContextCache
+  clean: (event?: ConfiguruEvent) => void
   config: {
-    load: () => ConfiguruExtConfig
-    get: () => ConfiguruExtConfig
+    load: () => Promise<ConfiguruExtConfig>
+    get: () => Promise<ConfiguruExtConfig>
   }
 }
 
-export interface ProjectContext {
-  envFile?: vscode.TextDocument
-  envFileParsed?: Record<string, any>
-  envFileText?: string
-  envFileUri?: vscode.Uri
-  tsConfigFile?: vscode.TextDocument
-  tsConfigFileText?: string
-  tsConfigFileUri?: vscode.Uri
+export interface ContextCache {
+  files: Map<string, vscode.TextDocument>
+  fileTexts: Map<string, string>
+  fileParsed: Map<string, Record<string, any>>
+  fileUris: Map<string, vscode.Uri>
 }
 
 export type ConfiguruFeatureFlags = Partial<{
@@ -28,21 +29,69 @@ export type ConfiguruFeatureFlags = Partial<{
   highlightUnsafeDefaultValues: boolean
 }>
 
+export type ConfigPaths = Array<{ loader: string; envs: string[] }>
+
+const cache: ContextCache = {
+  files: new Map(),
+  fileTexts: new Map(),
+  fileParsed: new Map(),
+  fileUris: new Map(),
+}
 export interface ConfiguruExtConfig {
   features: ConfiguruFeatureFlags
-  projectPaths: Array<{ path: string; projectName: string }>
-  defaultConfigPath: string
+  configPaths: ConfigPaths
 }
 
-const DEFAULT_CONFIG_PATH = '.env.jsonc'
+const validatePaths = async (paths: any): Promise<ConfigPaths> => {
+  if (
+    !Array.isArray(paths) ||
+    paths.some(
+      path =>
+        typeof path !== 'object' ||
+        !path.loader ||
+        !path.envs ||
+        !Array.isArray(path.envs) ||
+        typeof path.loader !== 'string' ||
+        path.envs.some((env: any) => typeof env !== 'string')
+    )
+  ) {
+    throw new Error(
+      'Paths must be array of { loader: string[], envs: string[] }'
+    )
+  }
+
+  let missingFile: string | undefined = undefined
+  for (const { loader, envs } of paths) {
+    for (const path of [loader, ...envs]) {
+      if (!(await helpers.fileExistsInWorkspace(path))) {
+        missingFile = path
+        break
+      }
+    }
+    if (missingFile) {
+      throw new Error(`File ${missingFile} does not exist`)
+    }
+  }
+  return paths
+}
+
+const DEFAULT_ENV_CONFIG_PATH = '.env.jsonc'
+const DEFAULT_TS_CONFIG_PATH = 'src/config.ts'
 
 let loadedConfig: ConfiguruExtConfig | undefined
+const state: ConfiguruContext['state'] = {}
 
-const load = (): ConfiguruExtConfig => {
+const load = async (): Promise<ConfiguruExtConfig> => {
   const vsCodeConfig = vscode.workspace.getConfiguration('configuru')
+  const defaultPaths = [
+    {
+      loader: DEFAULT_TS_CONFIG_PATH,
+      envs: [DEFAULT_ENV_CONFIG_PATH],
+    },
+  ]
+
   loadedConfig = {
-    projectPaths: vsCodeConfig.get('paths') ?? [],
-    defaultConfigPath: DEFAULT_CONFIG_PATH,
+    configPaths: defaultPaths,
     features: {
       suggestEnvVariables: vsCodeConfig.get(
         'features.suggestEnvVariables',
@@ -63,33 +112,61 @@ const load = (): ConfiguruExtConfig => {
     },
   }
 
+  try {
+    loadedConfig.configPaths = await validatePaths(
+      vsCodeConfig.get('paths', defaultPaths)
+    )
+    if (state.isConfigLoaded === false) {
+      ui.notifications.info(`Configuru Extension loaded successfully now`)
+    }
+    state.isConfigLoaded = true
+  } catch (error) {
+    if (state.isConfigLoaded !== false) {
+      ui.notifications.error(
+        `Configuru Extension Error - Invalid Config Paths: ${error.message}`
+      )
+    }
+    state.isConfigLoaded = false
+  }
+
   return loadedConfig
 }
 
-const get = () => {
-  return loadedConfig ?? load()
+const get = async (): Promise<ConfiguruExtConfig> => {
+  return loadedConfig ?? (await load())
 }
 
-const clean = (event: ConfiguruEvent) => {
-  if (!event.context.projects[event.projectName]) {
+const deleteFileCache = (event: ConfiguruEvent, fileName: string) => {
+  event.context.cache.files.delete(fileName)
+  event.context.cache.fileTexts.delete(fileName)
+  event.context.cache.fileParsed.delete(fileName)
+}
+
+const clean = (event?: ConfiguruEvent) => {
+  if (!event || event.type === ConfiguruEventType.ExtensionLoaded) {
+    const contextCache = event?.context.cache ?? cache
+    contextCache.files.clear()
+    contextCache.fileTexts.clear()
+    contextCache.fileParsed.clear()
+    contextCache.fileUris.clear()
     return
   }
-
-  if (helpers.isTsConfigFileEvent(event)) {
-    delete event.context.projects[event.projectName].tsConfigFile
-    delete event.context.projects[event.projectName].tsConfigFileText
-    delete event.context.projects[event.projectName].tsConfigFileUri
-  }
-  if (helpers.isEnvFileEvent(event)) {
-    delete event.context.projects[event.projectName].envFile
-    delete event.context.projects[event.projectName].envFileParsed
-    delete event.context.projects[event.projectName].envFileText
-    delete event.context.projects[event.projectName].envFileUri
+  if (
+    [
+      ConfiguruEventType.TsConfigFileChanged,
+      ConfiguruEventType.EnvFileChanged,
+    ].includes(event.type)
+  ) {
+    deleteFileCache(event, vscode.workspace.asRelativePath(event.document.uri))
   }
 }
 
+export type ConfiguruCacheValue<Key extends keyof ContextCache> =
+  ContextCache[Key] extends Map<any, infer I> ? I : never
+
 export const context: ConfiguruContext = {
-  projects: {},
+  state,
+  cache,
   clean,
   config: {
     load,

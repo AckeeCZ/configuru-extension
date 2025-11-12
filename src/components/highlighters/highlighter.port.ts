@@ -23,3 +23,18 @@ export const isTriggeredByEvent = <Event extends ConfiguruEventType>(
 ): highlighter is HighlighterPort<Event> => {
   return highlighter.triggers.includes(event)
 }
+
+// Typecheck helper
+export const createHighlighter = <
+  const Triggers extends readonly ConfiguruEventType[],
+>(definition: {
+  name: string
+  triggers: Triggers
+  flag: keyof ConfiguruFeatureFlags
+  highlight: (
+    event: ConfiguruEventsOf<Triggers[number]>,
+    config: ConfiguruExtConfig
+  ) => Promise<Highlight[]>
+}): HighlighterPort<Triggers[number]> => {
+  return definition
+}
