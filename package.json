@@ -1,6 +1,6 @@
 {
   "name": "configuru",
-  "displayName": "VS Code extension for the Configuru library",
+  "displayName": "Configuru",
   "description": "VS Code extension for the Configuru library for automatic config checking and suggestions",
   "publisher": "ackee",
   "version": "1.0.0",
