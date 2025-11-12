@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import { ConfiguruEventType } from '../event'
-import { Highlight, HighlighterPort } from './highlighter.port'
+import { createHighlighter, Highlight } from './highlighter.port'
 import { helpers } from '../helpers'
 
 const isDefaultValueSafe = (value: any, key: string) =>
@@ -57,13 +57,7 @@ const getTsFileDiagnostics = (
   return { target: tsConfigFile.uri, diagnostics }
 }
 
-export const unsafeDefaultVariablesHighlighter: HighlighterPort<
-  | ConfiguruEventType.TsConfigFileChanged
-  | ConfiguruEventType.TsConfigFileOpened
-  | ConfiguruEventType.EnvFileOpened
-  | ConfiguruEventType.EnvFileChanged
-  | ConfiguruEventType.ExtensionLoaded
-> = {
+export const unsafeDefaultVariablesHighlighter = createHighlighter({
   name: 'unsafe-default-variables',
   flag: 'highlightUnsafeDefaultValues',
   triggers: [
@@ -102,4 +96,4 @@ export const unsafeDefaultVariablesHighlighter: HighlighterPort<
 
     return allFilesDiagnostics
   },
-}
+})

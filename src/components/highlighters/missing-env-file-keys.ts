@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 import { ConfiguruEventType } from '../event'
 import { helpers } from '../helpers'
-import { Highlight, HighlighterPort } from './highlighter.port'
+import { createHighlighter, Highlight } from './highlighter.port'
 
 const getTsFileDiagnostics = (
   tsConfigFile: vscode.TextDocument,
@@ -74,12 +74,7 @@ const getTsFileDiagnostics = (
   return { target: tsConfigFile.uri, diagnostics }
 }
 
-export const missingEnvFileKeysHighlighter: HighlighterPort<
-  | ConfiguruEventType.TsConfigFileChanged
-  | ConfiguruEventType.TsConfigFileOpened
-  | ConfiguruEventType.EnvFileOpened
-  | ConfiguruEventType.ExtensionLoaded
-> = {
+export const missingEnvFileKeysHighlighter = createHighlighter({
   name: 'missing-env-file-keys',
   flag: 'highlightInvalidVariables',
   triggers: [
@@ -114,4 +109,4 @@ export const missingEnvFileKeysHighlighter: HighlighterPort<
     )
     return allFilesDiagnostics
   },
-}
+})

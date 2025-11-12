@@ -1,6 +1,6 @@
 import * as vscode from 'vscode'
 import { ConfiguruEventType } from '../event'
-import { Highlight, HighlighterPort } from './highlighter.port'
+import { createHighlighter, Highlight } from './highlighter.port'
 import { helpers } from '../helpers'
 
 const getEnvFileDiagnostics = (
@@ -59,18 +59,14 @@ const getEnvFileDiagnostics = (
   return { target: envFile.uri, diagnostics }
 }
 
-export const keysWithoutDescriptionHighlighter: HighlighterPort<
-  | ConfiguruEventType.EnvFileChanged
-  | ConfiguruEventType.EnvFileOpened
-  | ConfiguruEventType.ExtensionLoaded
-> = {
+export const keysWithoutDescriptionHighlighter = createHighlighter({
   name: 'keys-without-description',
   flag: 'highlightSecretsMissingDescription',
   triggers: [
     ConfiguruEventType.EnvFileChanged,
     ConfiguruEventType.EnvFileOpened,
     ConfiguruEventType.ExtensionLoaded,
-  ],
+  ] as const,
   highlight: async event => {
     const relatedEnvs = event.relatedPaths.flatMap(p => p.envs)
 
@@ -97,4 +93,4 @@ export const keysWithoutDescriptionHighlighter: HighlighterPort<
 
     return allFilesDiagnostics
   },
-}
+})
