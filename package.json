@@ -43,18 +43,21 @@
           "default": true,
           "description": "Highlights hidden variables in ts file that have unsafe default values in env file"
         },
-        "configuru.env.paths": {
+        "configuru.paths": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "path": {
+              "loader": {
                 "type": "string",
-                "description": "The path to the configuration file"
+                "description": "Relative path to the ts config file that is loading the env file keys"
               },
-              "projectName": {
-                "type": "string",
-                "description": "Name of the project"
+              "envs": {
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "description": "Relative path to the env.jsonc file that contains the secret definition"
+                }
               }
             }
           }
@@ -63,9 +66,13 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "npm run check-types && node esbuild.js",
+    "check-types": "tsc --noEmit",
+    "watch": "npm-run-all -p watch:*",
+    "watch:esbuild": "node esbuild.js --watch",
+    "watch:tsc": "tsc --noEmit --watch --project tsconfig.json",
+    "vscode:prepublish": "npm run package",
+    "package": "npm run check-types && node esbuild.js --production",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint '**/*.ts' -f codeframe --fix --max-warnings=0",
     "codestyle": "npm run lint && npm run prettier",
@@ -79,6 +86,7 @@
     "@types/node": "20.2.5",
     "@types/vscode": "^1.79.0",
     "@vscode/test-electron": "^2.3.2",
+    "esbuild": "^0.27.0",
     "eslint": "^8.41.0",
     "glob": "^8.1.0",
     "mocha": "^10.2.0",
