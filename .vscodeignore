@@ -9,7 +9,6 @@ vsc-extension-quickstart.md
 **/.eslintrc.json
 **/*.map
 **/*.ts
-resources
 .github/**
 tsconfig.json
 prettier.config.js
