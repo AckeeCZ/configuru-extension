@@ -117,13 +117,13 @@ const load = async (): Promise<ConfiguruExtConfig> => {
       vsCodeConfig.get('paths', defaultPaths)
     )
     if (state.isConfigLoaded === false) {
-      ui.notifications.info(`Configuru Ext now successfully loaded`)
+      ui.notifications.info(`Configuru Extension loaded successfully now`)
     }
     state.isConfigLoaded = true
   } catch (error) {
     if (state.isConfigLoaded !== false) {
       ui.notifications.error(
-        `Error loading Configuru Ext config: ${error.message}`
+        `Configuru Extension Error - Invalid Config Paths: ${error.message}`
       )
     }
     state.isConfigLoaded = false
