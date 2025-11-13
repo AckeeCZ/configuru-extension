@@ -13,7 +13,7 @@ async function main() {
     sourcesContent: false,
     platform: 'node',
     outfile: 'out/extension.js',
-    external: ['vscode'],
+    external: ['vscode', 'jsonc-parser'],
     logLevel: 'warning',
     plugins: [
       /* add to the end of plugins array */
