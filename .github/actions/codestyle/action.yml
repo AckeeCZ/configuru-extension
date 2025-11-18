@@ -1,0 +1,19 @@
+name: 'Code style check'
+description: 'Run code style checks'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Run code style checks
+      shell: bash
+      run: npm run ci:codestyle

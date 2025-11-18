@@ -15,3 +15,4 @@ prettier.config.js
 esbuild.js
 .eslint.tsconfig.json
 .eslintrc.js
+.nvmrc

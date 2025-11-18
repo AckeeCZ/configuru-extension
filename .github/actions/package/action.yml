@@ -1,0 +1,19 @@
+name: 'Package extension'
+description: 'Package the extension for production'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version-file: .nvmrc
+        cache: 'npm'
+
+    - name: Install dependencies
+      shell: bash
+      run: npm ci
+
+    - name: Package extension
+      shell: bash
+      run: npm run package

@@ -76,8 +76,9 @@
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint '**/*.ts' -f codeframe --fix --max-warnings=0",
     "codestyle": "npm run lint && npm run prettier",
+    "ci:codestyle": "eslint '**/*.ts' -f codeframe --max-warnings=0 && prettier --check '**/*.{ts,js,json,md}'",
     "prettier": "prettier --check --write '**/*.{ts,js,json,md}'",
-    "test": "node ./out/test/runTest.js"
+    "test": "tsx ./src/test/runTest.ts"
   },
   "devDependencies": {
     "@ackee/styleguide-backend-config": "^1.0.1",
@@ -91,6 +92,7 @@
     "glob": "^8.1.0",
     "mocha": "^10.2.0",
     "prettier": "^3.6.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.6.2"
   },
   "dependencies": {
