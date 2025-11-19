@@ -45,6 +45,15 @@
         },
         "configuru.paths": {
           "type": "array",
+          "description": "Paths to the ts config file and relevant env files",
+          "default": [
+            {
+              "loader": "src/config.ts",
+              "envs": [
+                ".env.jsonc"
+              ]
+            }
+          ],
           "items": {
             "type": "object",
             "properties": {
