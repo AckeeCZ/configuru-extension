@@ -8,6 +8,23 @@ VS Code extension for the [Configuru](https://github.com/AckeeCZ/configuru) libr
 
 </div>
 
+## Setup
+
+Configuru extension by default uses `.env.jsonc` and `src/config.ts` file as a reference.
+If you have different file names, env files are located outside of root folder or you use multiple env files in one .ts file, you
+need to set file mapping in configuru settings.
+
+Following example shows how to run extension for file `src/config-manager.ts` using two env files `config/development.jsonc` and `config/stage.jsonc`
+
+> ⚠️ Best practice is to set this config for workspace only
+
+```
+    "configuru.paths": [{
+        "loader": "src/config-manager.ts"
+        "envs": ["config/development.jsonc", "config/stage.jsonc"]
+    }]
+```
+
 ## Features
 
 Every feature can be enabled/disabled using its configuration key in VSCode settings. All enabled by default.
@@ -39,22 +56,5 @@ If your `.env.jsonc` file contains a secret key that does not have description p
 
 If your `config.ts` file contains a hidden variable that is not an empty string or is not prefixed and suffixed with double underscores in `.env.jsonc`, the extension will underline it as a warning.
 ![Example](./resources/unsafe_default_value_for_hidden_secret_warning.jpeg)
-
-### Specifying your env file
-
-Configuru extension by default uses `.env.jsonc` and `src/config.ts` file as a reference.
-If you have different file names, env files are located outside of root folder or you use multiple env files in one .ts file, you
-need to set file mapping in configuru settings.
-
-Following example shows how to run extension for file `src/config-manager.ts` using two env files `config/development.jsonc` and `config/stage.jsonc`
-
-> ⚠️ Best practice is to set this config for workspace only
-
-```
-    "configuru.paths": [{
-        "loader": "src/config-manager.ts"
-        "envs": ["config/development.jsonc", "config/stage.jsonc"]
-    }]
-```
 
 **Enjoy!**
