@@ -22,12 +22,16 @@ export interface ContextCache {
   fileUris: Map<string, vscode.Uri>
 }
 
-export type ConfiguruFeatureFlags = Partial<{
-  suggestEnvVariables: boolean
-  highlightInvalidVariables: boolean
-  highlightSecretsMissingDescription: boolean
-  highlightUnsafeDefaultValues: boolean
-}>
+export const Features = [
+  'suggestEnvVariables',
+  'highlightInvalidVariables',
+  'highlightSecretsMissingDescription',
+  'highlightUnsafeDefaultValues',
+] as const
+
+export type ConfiguruFeatureFlags = Partial<
+  Record<(typeof Features)[number], boolean>
+>
 
 export type ConfigPaths = Array<{ loader: string; envs: string[] }>
 
@@ -90,26 +94,17 @@ const load = async (): Promise<ConfiguruExtConfig> => {
     },
   ]
 
+  const featureFlags = Features.reduce<ConfiguruFeatureFlags>(
+    (acc, feature) => {
+      acc[feature] = vsCodeConfig.get(`features.${feature}`, true)
+      return acc
+    },
+    {}
+  )
+
   loadedConfig = {
     configPaths: defaultPaths,
-    features: {
-      suggestEnvVariables: vsCodeConfig.get(
-        'features.suggestEnvVariables',
-        true
-      ),
-      highlightInvalidVariables: vsCodeConfig.get(
-        'features.highlightInvalidVariables',
-        true
-      ),
-      highlightSecretsMissingDescription: vsCodeConfig.get(
-        'features.highlightSecretsMissingDescription',
-        true
-      ),
-      highlightUnsafeDefaultValues: vsCodeConfig.get(
-        'features.highlightUnsafeDefaultValues',
-        true
-      ),
-    },
+    features: featureFlags,
   }
 
   try {
