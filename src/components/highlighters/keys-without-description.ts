@@ -66,7 +66,7 @@ export const keysWithoutDescriptionHighlighter = createHighlighter({
     ConfiguruEventType.EnvFileChanged,
     ConfiguruEventType.EnvFileOpened,
     ConfiguruEventType.ExtensionLoaded,
-  ] as const,
+  ],
   highlight: async event => {
     const relatedEnvs = event.relatedPaths.flatMap(p => p.envs)
 

@@ -131,22 +131,20 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
     highlighters.forEach(highlighter => {
       if (
         event.affectsConfiguration(`configuru.features.${highlighter.flag}`) &&
-        config.features[highlighter.flag]
+        !config.features[highlighter.flag]
       ) {
         diagnosticCollections[highlighter.name].clear()
       }
     })
 
     suggestions.forEach(suggestion => {
-      if (
-        event.affectsConfiguration(`configuru.features.${suggestion.flag}`) &&
-        config.features[suggestion.flag]
-      ) {
-        suggestionDisposables[suggestion.flag].dispose()
-      }
-      if (config.features[suggestion.flag]) {
-        suggestionDisposables[suggestion.flag] =
-          suggestion.register(vsCodeContext)
+      if (event.affectsConfiguration(`configuru.features.${suggestion.flag}`)) {
+        if (!config.features[suggestion.flag]) {
+          suggestionDisposables[suggestion.flag].dispose()
+        } else {
+          suggestionDisposables[suggestion.flag] =
+            suggestion.register(vsCodeContext)
+        }
       }
     })
     await triggerExtensionLoaded(config)
