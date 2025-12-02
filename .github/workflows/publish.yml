@@ -26,3 +26,4 @@ jobs:
       - uses: ./.github/actions/publish
         with:
           vsce_token: ${{ secrets.VSCE_TOKEN }}
+          open_vsx_token: ${{ secrets.OPENVSX_TOKEN }}

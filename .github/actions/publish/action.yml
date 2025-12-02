@@ -5,6 +5,9 @@ inputs:
   vsce_token:
     description: 'VS Code Marketplace token'
     required: true
+  open_vsx_token:
+    description: 'Open VSX token'
+    required: true
 
 runs:
   using: 'composite'
@@ -22,5 +25,10 @@ runs:
     - uses: lannonbr/vsce-action@4.0.0
       with:
         args: 'publish -p ${{ inputs.vsce_token }}'
+      name: Publish to VS Code Marketplace
       env:
         VSCE_TOKEN: ${{ inputs.vsce_token }}
+
+    - name: Publish to Open VSX
+      shell: bash
+      run: npx ovsx publish -p ${{ inputs.open_vsx_token }}
