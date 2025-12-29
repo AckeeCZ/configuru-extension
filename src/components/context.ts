@@ -1,4 +1,5 @@
 import * as vscode from 'vscode'
+import type { ConfigTsKey } from './config-ts-parser'
 import { ConfiguruEvent, ConfiguruEventType } from './event'
 import { helpers } from './helpers'
 import { ui } from './ui'
@@ -20,6 +21,7 @@ export interface ContextCache {
   fileTexts: Map<string, string>
   fileParsed: Map<string, Record<string, any>>
   fileUris: Map<string, vscode.Uri>
+  configTsKeys: Map<string, ConfigTsKey[]>
 }
 
 export const Features = [
@@ -40,6 +42,7 @@ const cache: ContextCache = {
   fileTexts: new Map(),
   fileParsed: new Map(),
   fileUris: new Map(),
+  configTsKeys: new Map(),
 }
 export interface ConfiguruExtConfig {
   features: ConfiguruFeatureFlags
@@ -135,6 +138,7 @@ const deleteFileCache = (event: ConfiguruEvent, fileName: string) => {
   event.context.cache.files.delete(fileName)
   event.context.cache.fileTexts.delete(fileName)
   event.context.cache.fileParsed.delete(fileName)
+  event.context.cache.configTsKeys.delete(fileName)
 }
 
 const clean = (event?: ConfiguruEvent) => {
@@ -144,6 +148,7 @@ const clean = (event?: ConfiguruEvent) => {
     contextCache.fileTexts.clear()
     contextCache.fileParsed.clear()
     contextCache.fileUris.clear()
+    contextCache.configTsKeys.clear()
     return
   }
   if (

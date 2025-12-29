@@ -5,7 +5,10 @@ import { createHighlighter, Highlight } from './highlighter.port'
 
 const getTsFileDiagnostics = (
   tsConfigFile: vscode.TextDocument,
-  tsConfigText: string,
+  tsConfigKeys: Array<{
+    key: string
+    position: { start: number; end: number }
+  }>,
   envs: Array<{
     uri: vscode.Uri
     parsed: Record<string, any>
@@ -14,6 +17,8 @@ const getTsFileDiagnostics = (
   const diagnostics: vscode.Diagnostic[] = []
   const dotEnvKeys = envs.flatMap(({ parsed }) => Object.keys(parsed))
 
+  // Find comment ranges to exclude keys that are in comments
+  const tsConfigText = tsConfigFile.getText()
   const commentPattern = /\/\/.*\n/g
   const comments = tsConfigText.match(commentPattern)
   const commentRanges =
@@ -26,20 +31,14 @@ const getTsFileDiagnostics = (
       )
     }) ?? []
 
-  const pattern = /\((\s)*['"].*["'](\s)*\)/g
-  const configTsKeys =
-    tsConfigText.match(pattern)?.map(x => x.slice(1, -1).trim().slice(1, -1)) ??
-    []
-  const missingKeysInDotEnv = configTsKeys.filter(
-    tsKey => !dotEnvKeys.includes(tsKey)
+  const missingKeysInDotEnv = tsConfigKeys.filter(
+    configKey => !dotEnvKeys.includes(configKey.key)
   )
 
-  for (const key of missingKeysInDotEnv) {
-    const startPos = tsConfigFile.getText().indexOf(`'${key}'`)
-    const endPos = startPos + key.length + 2
+  for (const configKey of missingKeysInDotEnv) {
     const keyRange = new vscode.Range(
-      tsConfigFile.positionAt(startPos),
-      tsConfigFile.positionAt(endPos)
+      tsConfigFile.positionAt(configKey.position.start),
+      tsConfigFile.positionAt(configKey.position.end)
     )
 
     const isMissingKeyInTheComment =
@@ -49,7 +48,7 @@ const getTsFileDiagnostics = (
       // Underline missing key in config.ts file. Add a message to go to .env.jsonc file and link it
       const errorMessage = new vscode.Diagnostic(
         keyRange,
-        `Key '${key}' is missing in ${envs.map(({ uri }) => uri.path).join(', ')}`,
+        `Key '${configKey.key}' is missing in ${envs.map(({ uri }) => uri.path).join(', ')}`,
         vscode.DiagnosticSeverity.Error
       )
       errorMessage.relatedInformation = [
@@ -81,6 +80,7 @@ export const missingEnvFileKeysHighlighter = createHighlighter({
     ConfiguruEventType.TsConfigFileChanged,
     ConfiguruEventType.TsConfigFileOpened,
     ConfiguruEventType.EnvFileOpened,
+    ConfiguruEventType.EnvFileChanged,
     ConfiguruEventType.ExtensionLoaded,
   ],
   highlight: async event => {
@@ -89,7 +89,7 @@ export const missingEnvFileKeysHighlighter = createHighlighter({
     await Promise.all(
       event.relatedPaths.map(async ({ loader, envs }) => {
         const [tsConfigFile] = await helpers.events.getFiles(event, [loader])
-        const [tsConfigText] = await helpers.events.getFileTexts(event, [
+        const [tsConfigKeys] = await helpers.events.getConfigTsKeys(event, [
           loader,
         ])
         const envUris = await helpers.events.getFileUris(event, envs)
@@ -98,7 +98,7 @@ export const missingEnvFileKeysHighlighter = createHighlighter({
         allFilesDiagnostics.push(
           getTsFileDiagnostics(
             tsConfigFile,
-            tsConfigText,
+            tsConfigKeys,
             envUris.map((uri, i) => ({
               uri,
               parsed: envsParsed[i],

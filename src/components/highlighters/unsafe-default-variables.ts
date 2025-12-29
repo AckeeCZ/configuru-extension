@@ -8,36 +8,34 @@ const isDefaultValueSafe = (value: any, key: string) =>
 
 const getTsFileDiagnostics = (
   tsConfigFile: vscode.TextDocument,
-  tsConfigText: string,
+  tsConfigKeys: Array<{
+    key: string
+    position: { start: number; end: number }
+    isHidden: boolean
+  }>,
   envs: Array<{
     uri: vscode.Uri
     parsed: Record<string, any>
   }>
 ): Highlight => {
-  const hiddenPattern = /hidden\((\s)*['"].*['"](\s)*\)/g
-  const hiddenTsKeys =
-    tsConfigText
-      .match(hiddenPattern)
-      ?.map(x => x.slice(7, -1).trim().slice(1, -1)) ?? []
+  const hiddenTsKeys = tsConfigKeys.filter(key => key.isHidden)
 
   const diagnostics: vscode.Diagnostic[] = []
 
   for (const hiddenKey of hiddenTsKeys) {
-    const env = envs.find(({ parsed }) => hiddenKey in parsed)
+    const env = envs.find(({ parsed }) => hiddenKey.key in parsed)
 
-    if (!env || isDefaultValueSafe(env.parsed[hiddenKey], hiddenKey)) {
+    if (!env || isDefaultValueSafe(env.parsed[hiddenKey.key], hiddenKey.key)) {
       continue
     }
 
-    const startPos = tsConfigFile.getText().indexOf(`'${hiddenKey}'`)
-    const endPos = startPos + hiddenKey.length + 2
     const keyRange = new vscode.Range(
-      tsConfigFile.positionAt(startPos),
-      tsConfigFile.positionAt(endPos)
+      tsConfigFile.positionAt(hiddenKey.position.start),
+      tsConfigFile.positionAt(hiddenKey.position.end)
     )
     const warningMessage = new vscode.Diagnostic(
       keyRange,
-      `Key '${hiddenKey}' should have a safe default value. Use empty string or '__${hiddenKey}__' in ${tsConfigFile.uri.path}`,
+      `Key '${hiddenKey.key}' should have a safe default value. Use empty string or '__${hiddenKey.key}__' in ${tsConfigFile.uri.path}`,
       vscode.DiagnosticSeverity.Warning
     )
     warningMessage.relatedInformation = [
@@ -75,7 +73,7 @@ export const unsafeDefaultVariablesHighlighter = createHighlighter({
     await Promise.all(
       relatedPaths.map(async ({ loader, envs }) => {
         const [tsConfigFile] = await helpers.events.getFiles(event, [loader])
-        const [tsConfigText] = await helpers.events.getFileTexts(event, [
+        const [tsConfigKeys] = await helpers.events.getConfigTsKeys(event, [
           loader,
         ])
         const envUris = await helpers.events.getFileUris(event, envs)
@@ -84,7 +82,7 @@ export const unsafeDefaultVariablesHighlighter = createHighlighter({
         allFilesDiagnostics.push(
           getTsFileDiagnostics(
             tsConfigFile,
-            tsConfigText,
+            tsConfigKeys,
             envUris.map((uri, i) => ({
               uri,
               parsed: envsParsed[i],
