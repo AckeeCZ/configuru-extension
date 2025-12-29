@@ -1,6 +1,7 @@
 import * as jsonParser from 'jsonc-parser'
 import * as vscode from 'vscode'
 import type { ConfiguruCacheValue, ContextCache } from './context'
+import { extractConfiguruKeys, type ConfigTsKey } from './config-ts-parser'
 import {
   ConfiguruEvent,
   FileEvent,
@@ -89,6 +90,14 @@ const getFiles = async (
   return vscode.workspace.openTextDocument(uri)
 }
 
+const getConfigTsKeys = async (
+  event: ConfiguruEvent,
+  fileName: string
+): Promise<ConfigTsKey[]> => {
+  const fileText = await getFileText(event, fileName)
+  return extractConfiguruKeys(fileText)
+}
+
 const contextDataloader =
   <
     Key extends keyof ContextCache,
@@ -130,5 +139,6 @@ export const helpers = {
     getFileUris: contextDataloader(getFileUri, 'fileUris'),
     getFiles: contextDataloader(getFiles, 'files'),
     getEnvFilesParsed: contextDataloader(getEnvFileParsed, 'fileParsed'),
+    getConfigTsKeys: contextDataloader(getConfigTsKeys, 'configTsKeys'),
   },
 }
