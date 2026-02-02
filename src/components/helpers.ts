@@ -98,6 +98,42 @@ const getConfigTsKeys = async (
   return extractConfiguruKeys(fileText)
 }
 
+export interface EnvFileKeyMatch {
+  key: string
+  uri: vscode.Uri
+  position: vscode.Position
+  lineText: string
+}
+
+const getEnvFilesKeys = async (
+  event: ConfiguruEvent,
+  fileName: string
+): Promise<Map<string, EnvFileKeyMatch[]>> => {
+  const index = new Map<string, EnvFileKeyMatch[]>()
+  try {
+    const doc = await getFiles(event, fileName)
+    const uri = getFileUri(event, fileName)
+    const text = doc.getText()
+    const jsonKeyRegex = /"([A-Za-z0-9_.-]+)"\s*:\s*/g
+    for (const m of text.matchAll(jsonKeyRegex)) {
+      const key = m[1]
+      const pos = doc.positionAt(m.index + m[0].length)
+      const match: EnvFileKeyMatch = {
+        uri,
+        position: pos,
+        lineText: doc.lineAt(pos.line).text.trim(),
+        key,
+      }
+      const list = index.get(key) ?? []
+      list.push(match)
+      index.set(key, list)
+    }
+  } catch {
+    // Unreadable file — return empty index; cache will refresh on change events.
+  }
+  return index
+}
+
 const contextDataloader =
   <
     Key extends keyof ContextCache,
@@ -140,5 +176,6 @@ export const helpers = {
     getFiles: contextDataloader(getFiles, 'files'),
     getEnvFilesParsed: contextDataloader(getEnvFileParsed, 'fileParsed'),
     getConfigTsKeys: contextDataloader(getConfigTsKeys, 'configTsKeys'),
+    getEnvFilesKeys: contextDataloader(getEnvFilesKeys, 'envFileKeys'),
   },
 }

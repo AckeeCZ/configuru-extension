@@ -1,7 +1,7 @@
 import * as vscode from 'vscode'
 import type { ConfigTsKey } from './config-ts-parser'
 import { ConfiguruEvent, ConfiguruEventType } from './event'
-import { helpers } from './helpers'
+import { EnvFileKeyMatch, helpers } from './helpers'
 import { ui } from './ui'
 
 export interface ConfiguruContext {
@@ -22,6 +22,7 @@ export interface ContextCache {
   fileParsed: Map<string, Record<string, any>>
   fileUris: Map<string, vscode.Uri>
   configTsKeys: Map<string, ConfigTsKey[]>
+  envFileKeys: Map<string, Map<string, EnvFileKeyMatch[]>>
 }
 
 export const Features = [
@@ -30,6 +31,7 @@ export const Features = [
   'highlightSecretsMissingDescription',
   'highlightUnsafeDefaultValues',
   'highlightLoaderTypeMismatch',
+  'goToVariableDefinition',
 ] as const
 
 export type ConfiguruFeatureFlags = Partial<
@@ -44,6 +46,7 @@ const cache: ContextCache = {
   fileParsed: new Map(),
   fileUris: new Map(),
   configTsKeys: new Map(),
+  envFileKeys: new Map(),
 }
 export interface ConfiguruExtConfig {
   features: ConfiguruFeatureFlags
@@ -142,6 +145,7 @@ const deleteFileCache = (event: ConfiguruEvent, fileName: string) => {
   event.context.cache.fileTexts.delete(fileName)
   event.context.cache.fileParsed.delete(fileName)
   event.context.cache.configTsKeys.delete(fileName)
+  event.context.cache.envFileKeys.delete(fileName)
 }
 
 const clean = (event?: ConfiguruEvent) => {
@@ -152,6 +156,7 @@ const clean = (event?: ConfiguruEvent) => {
     contextCache.fileParsed.clear()
     contextCache.fileUris.clear()
     contextCache.configTsKeys.clear()
+    contextCache.envFileKeys.clear()
     return
   }
   if (

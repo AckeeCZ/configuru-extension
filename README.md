@@ -64,4 +64,11 @@ If your `config.ts` file contains a hidden variable that is not an empty string 
 If a key in your `config.ts` uses a loader type (e.g. `loader.number`) that is incompatible with its default value in `.env.jsonc`, the extension will underline it as an error. String values that are numeric, boolean, or valid JSON are accepted when the loader can coerce them. Placeholder values (`""` or `__KEY_NAME__`) are always allowed.
 ![Example](./resources/loader_type_mismatch.png)
 
+### Navigation to variable definition
+
+🔧 `configuru.features.goToVariableDefinition`
+
+Allows you to navigate from the variable loader in `config.ts` to its definition in `.env.jsonc` file.
+![Example](./resources/go_to_definition.gif)
+
 **Enjoy!**
