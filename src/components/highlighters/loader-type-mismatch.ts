@@ -14,23 +14,30 @@ const inferValueType = (value: any): ConfigTsKeyType | null => {
   return null
 }
 
-const isStringCoercibleTo = (value: string, targetType: ConfigTsKeyType): boolean => {
+const isStringCoercibleTo = (
+  value: string,
+  targetType: ConfigTsKeyType
+): boolean => {
   switch (targetType) {
     case 'number':
       return value !== '' && !isNaN(Number(value))
     case 'bool':
       return ['true', 'false'].includes(value.toLowerCase())
     case 'json':
-      try { JSON.parse(value); return true } catch { return false }
+      try {
+        JSON.parse(value)
+        return true
+      } catch {
+        return false
+      }
     default:
       return false
   }
 }
 
 const isPlaceholderValue = (key: string, value: any): boolean => {
-  if (typeof value !== 'string') return false
   if (value === '') return true
-  return new RegExp(`^__${key}__$`).test(value)
+  return value === `__${key}__`
 }
 
 const isLoaderTypeCompatible = ({
@@ -38,8 +45,8 @@ const isLoaderTypeCompatible = ({
   loaderType,
   value,
 }: {
-  key: string,
-  loaderType: ConfigTsKeyType,
+  key: string
+  loaderType: ConfigTsKeyType
   value: any
 }): boolean => {
   const valueType = inferValueType(value)
@@ -47,10 +54,8 @@ const isLoaderTypeCompatible = ({
   if (loaderType === 'custom') return true
   if (isPlaceholderValue(key, value)) return true
   if (loaderType === valueType) return true
-  if (valueType === 'string' && isStringCoercibleTo(value, loaderType)) return true
-  return false
+  return valueType === 'string' && isStringCoercibleTo(value, loaderType)
 }
-
 
 const findKeyRangeInEnvFile = (
   envFile: vscode.TextDocument,
@@ -86,20 +91,22 @@ const getTsFileDiagnostics = (
     if (!env) continue
     const defaultValue = env.parsed[configKey.key]
 
-    if (!isLoaderTypeCompatible({
-      key: configKey.key,
-      loaderType: configKey.type,
-      value: defaultValue,
-    })) {
+    if (
+      !isLoaderTypeCompatible({
+        key: configKey.key,
+        loaderType: configKey.type,
+        value: defaultValue,
+      })
+    ) {
       const valueType = inferValueType(defaultValue)
       const keyRange = new vscode.Range(
         tsConfigFile.positionAt(configKey.position.start),
         tsConfigFile.positionAt(configKey.position.end)
       )
-      
+
       const diagnostic = new vscode.Diagnostic(
         keyRange,
-        `Loader type '${configKey.type}' doesn't match default value type '${valueType}' for key '${configKey.key}'`,
+        `Loader type '${configKey.type}' doesn't match default value type '${valueType ?? 'unknown'}' for key '${configKey.key}'`,
         vscode.DiagnosticSeverity.Error
       )
       diagnostic.relatedInformation = [
@@ -108,17 +115,23 @@ const getTsFileDiagnostics = (
           message: `Loader type is '${configKey.type}'`,
         },
         {
-          location: new vscode.Location(env.uri, findKeyRangeInEnvFile(env.file, configKey.key)),
-          message: `Default value type is '${valueType}' in env file`,
+          location: new vscode.Location(
+            env.uri,
+            findKeyRangeInEnvFile(env.file, configKey.key)
+          ),
+          message: `Default value type is '${valueType ?? 'unknown'}' in env file`,
         },
       ]
-      diagnostic.code = { value: 'loader-type-mismatch', target: tsConfigFile.uri }
+      diagnostic.code = {
+        value: 'loader-type-mismatch',
+        target: tsConfigFile.uri,
+      }
       diagnostic.source = 'configuru'
-      
+
       diagnostics.push(diagnostic)
     }
   }
-  
+
   return { target: tsConfigFile.uri, diagnostics }
 }
 

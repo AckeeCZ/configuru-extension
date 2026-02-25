@@ -54,10 +54,11 @@ const getLoaderTypeAndFlags = (
     if (ts.isPropertyAccessExpression(node)) {
       propertyNames.push(node.name.text)
       collectPropertyNames(node.expression)
-    } else if (ts.isCallExpression(node)) {
-      if (ts.isPropertyAccessExpression(node.expression)) {
-        collectPropertyNames(node.expression)
-      }
+    } else if (
+      ts.isCallExpression(node) &&
+      ts.isPropertyAccessExpression(node.expression)
+    ) {
+      collectPropertyNames(node.expression)
     }
   }
   collectPropertyNames(expr)

@@ -9,7 +9,7 @@ export interface Highlight {
 
 export interface HighlighterPort<Triggers extends ConfiguruEventType> {
   name: string
-  triggers: ReadonlyArray<Triggers>
+  triggers: readonly Triggers[]
   flag: keyof ConfiguruFeatureFlags
   highlight: (
     event: ConfiguruEventsOf<Triggers>,
