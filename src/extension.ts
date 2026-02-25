@@ -14,11 +14,13 @@ import { keysWithoutDescriptionHighlighter } from './components/highlighters/key
 import { missingEnvFileKeysHighlighter } from './components/highlighters/missing-env-file-keys'
 import { unsafeDefaultVariablesHighlighter } from './components/highlighters/unsafe-default-variables'
 import { envVariablesSuggestion } from './components/suggestions/env-variables-suggestion'
+import { loaderTypeMismatchHighlighter } from './components/highlighters/loader-type-mismatch'
 
 const highlighters: HighlighterPort<any>[] = [
   missingEnvFileKeysHighlighter,
   keysWithoutDescriptionHighlighter,
   unsafeDefaultVariablesHighlighter,
+  loaderTypeMismatchHighlighter,
 ]
 
 const suggestions = [envVariablesSuggestion]
@@ -35,6 +37,7 @@ const getWorkspaceFolders = () => {
 
 const triggerEvent = async (event: ConfiguruEvent) => {
   const config = await context.config.get()
+  
   event.context.clean(event)
 
   for (const highlighter of highlighters) {

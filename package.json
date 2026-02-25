@@ -43,6 +43,11 @@
           "default": true,
           "description": "Highlights hidden variables in ts file that have unsafe default values in env file"
         },
+        "configuru.features.highlightLoaderTypeMismatch": {
+          "type": "boolean",
+          "default": true,
+          "description": "Highlights loader type mismatches between the ts config file and the default values in env file"
+        },
         "configuru.paths": {
           "type": "array",
           "description": "Paths to the ts config file and relevant env files",

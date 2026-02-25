@@ -29,6 +29,7 @@ export const Features = [
   'highlightInvalidVariables',
   'highlightSecretsMissingDescription',
   'highlightUnsafeDefaultValues',
+  'highlightLoaderTypeMismatch',
 ] as const
 
 export type ConfiguruFeatureFlags = Partial<
