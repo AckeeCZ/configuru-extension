@@ -58,12 +58,12 @@ const isLoaderTypeCompatible = ({
 }
 
 const findKeyRangeInEnvFile = (
+  envFileTree: jsonParser.Node | undefined,
   envFile: vscode.TextDocument,
   key: string
 ): vscode.Range => {
-  const root = jsonParser.parseTree(envFile.getText())
-  if (root?.type === 'object' && root.children) {
-    for (const prop of root.children) {
+  if (envFileTree?.type === 'object' && envFileTree.children) {
+    for (const prop of envFileTree.children) {
       if (prop.type === 'property' && prop.children?.[0]?.value === key) {
         const keyNode = prop.children[0]
         return new vscode.Range(
@@ -86,10 +86,17 @@ const getTsFileDiagnostics = (
   }>
 ): Highlight => {
   const diagnostics: vscode.Diagnostic[] = []
+
+  // Parse env file trees ONCE before the loop
+  const envTrees = envs.map(env => ({
+    ...env,
+    tree: jsonParser.parseTree(env.file.getText()),
+  }))
+
   for (const configKey of tsConfigKeys) {
-    const env = envs.find(({ parsed }) => configKey.key in parsed)
-    if (!env) continue
-    const defaultValue = env.parsed[configKey.key]
+    const envWithTree = envTrees.find(({ parsed }) => configKey.key in parsed)
+    if (!envWithTree?.tree) continue
+    const defaultValue = envWithTree.parsed[configKey.key]
 
     if (
       !isLoaderTypeCompatible({
@@ -116,8 +123,12 @@ const getTsFileDiagnostics = (
         },
         {
           location: new vscode.Location(
-            env.uri,
-            findKeyRangeInEnvFile(env.file, configKey.key)
+            envWithTree.uri,
+            findKeyRangeInEnvFile(
+              envWithTree.tree,
+              envWithTree.file,
+              configKey.key
+            )
           ),
           message: `Default value type is '${valueType ?? 'unknown'}' in env file`,
         },
