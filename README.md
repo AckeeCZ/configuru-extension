@@ -57,4 +57,11 @@ If your `.env.jsonc` file contains a secret key that does not have description p
 If your `config.ts` file contains a hidden variable that is not an empty string or is not prefixed and suffixed with double underscores in `.env.jsonc`, the extension will underline it as a warning.
 ![Example](./resources/unsafe_default_value_for_hidden_secret_warning.jpeg)
 
+### Highlighting of mismatches between loader and default value
+
+🔧 `configuru.features.highlightLoaderTypeMismatch`
+
+If a key in your `config.ts` uses a loader type (e.g. `loader.number`) that is incompatible with its default value in `.env.jsonc`, the extension will underline it as an error. String values that are numeric, boolean, or valid JSON are accepted when the loader can coerce them. Placeholder values (`""` or `__KEY_NAME__`) are always allowed.
+![Example](./resources/loader_type_mismatch.png)
+
 **Enjoy!**

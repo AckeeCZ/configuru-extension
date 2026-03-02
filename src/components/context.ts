@@ -29,6 +29,7 @@ export const Features = [
   'highlightInvalidVariables',
   'highlightSecretsMissingDescription',
   'highlightUnsafeDefaultValues',
+  'highlightLoaderTypeMismatch',
 ] as const
 
 export type ConfiguruFeatureFlags = Partial<
@@ -67,7 +68,7 @@ const validatePaths = async (paths: any): Promise<ConfigPaths> => {
     )
   }
 
-  let missingFile: string | undefined = undefined
+  let missingFile: string | undefined
   for (const { loader, envs } of paths) {
     for (const path of [loader, ...envs]) {
       if (!(await helpers.fileExistsInWorkspace(path))) {
@@ -115,13 +116,15 @@ const load = async (): Promise<ConfiguruExtConfig> => {
       vsCodeConfig.get('paths', defaultPaths)
     )
     if (state.isConfigLoaded === false) {
-      ui.notifications.info(`Configuru Extension loaded successfully now`)
+      ui.notifications.info('Configuru Extension loaded successfully now')
     }
     state.isConfigLoaded = true
   } catch (error) {
     if (state.isConfigLoaded !== false) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error)
       ui.notifications.error(
-        `Configuru Extension Error - Invalid Config Paths: ${error.message}`
+        `Configuru Extension Error - Invalid Config Paths: ${errorMessage}`
       )
     }
     state.isConfigLoaded = false

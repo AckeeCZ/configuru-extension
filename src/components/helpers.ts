@@ -111,7 +111,7 @@ const contextDataloader =
   ): ((
     event: ConfiguruEvent,
     fileNames: string[]
-  ) => Promise<ConfiguruCacheValue<Key>[]>) =>
+  ) => Promise<Array<ConfiguruCacheValue<Key>>>) =>
   async (event: ConfiguruEvent, fileNames: string[]) => {
     const cache = event.context.cache[key] as Map<
       string,
