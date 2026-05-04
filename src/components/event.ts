@@ -5,13 +5,16 @@ export enum ConfiguruEventType {
   ExtensionLoaded = 'extensionLoaded',
   EnvFileChanged = 'envFileChanged',
   EnvFileOpened = 'envFileOpened',
+  EnvFileInspected = 'envFileInspected',
   TsConfigFileChanged = 'tsConfigFileChanged',
   TsConfigFileOpened = 'configFileOpened',
+  TsConfigFileInspected = 'tsConfigFileInspected',
 }
 
 export enum ConfiguruFileAction {
   Changed = 'changed',
   Opened = 'opened',
+  Inspected = 'inspected',
 }
 
 export interface BaseEvent {
@@ -45,11 +48,21 @@ export interface ConfigFileOpenedEvent extends FileEvent {
   type: ConfiguruEventType.TsConfigFileOpened
 }
 
+export interface EnvFileInspectedEvent extends FileEvent {
+  type: ConfiguruEventType.EnvFileInspected
+}
+
+export interface ConfigFileInspectedEvent extends FileEvent {
+  type: ConfiguruEventType.TsConfigFileInspected
+}
+
 export type ConfiguruEvent =
   | EnvFileChangedEvent
   | ConfigFileChangedEvent
   | EnvFileOpenedEvent
   | ConfigFileOpenedEvent
+  | EnvFileInspectedEvent
+  | ConfigFileInspectedEvent
   | ExtensionLoadedEvent
 
 export type ConfiguruEventOf<T extends ConfiguruEventType> = Extract<
@@ -64,19 +77,27 @@ export type ConfiguruEventWithoutRelatedPaths = Omit<
 
 export const isTsConfigFileEvent = (
   event: ConfiguruEventWithoutRelatedPaths
-): event is ConfigFileChangedEvent | ConfigFileOpenedEvent => {
+): event is
+  | ConfigFileChangedEvent
+  | ConfigFileOpenedEvent
+  | ConfigFileInspectedEvent => {
   return (
     event.type === ConfiguruEventType.TsConfigFileChanged ||
-    event.type === ConfiguruEventType.TsConfigFileOpened
+    event.type === ConfiguruEventType.TsConfigFileOpened ||
+    event.type === ConfiguruEventType.TsConfigFileInspected
   )
 }
 
 export const isEnvFileEvent = (
   event: ConfiguruEventWithoutRelatedPaths
-): event is EnvFileChangedEvent | EnvFileOpenedEvent => {
+): event is
+  | EnvFileChangedEvent
+  | EnvFileOpenedEvent
+  | EnvFileInspectedEvent => {
   return (
     event.type === ConfiguruEventType.EnvFileChanged ||
-    event.type === ConfiguruEventType.EnvFileOpened
+    event.type === ConfiguruEventType.EnvFileOpened ||
+    event.type === ConfiguruEventType.EnvFileInspected
   )
 }
 
@@ -143,6 +164,18 @@ export const createConfiguruExtensionLoadedEvent = (
   } satisfies Omit<ExtensionLoadedEvent, 'relatedPaths'>)
 }
 
+const TS_CONFIG_EVENT_BY_ACTION = {
+  [ConfiguruFileAction.Changed]: ConfiguruEventType.TsConfigFileChanged,
+  [ConfiguruFileAction.Opened]: ConfiguruEventType.TsConfigFileOpened,
+  [ConfiguruFileAction.Inspected]: ConfiguruEventType.TsConfigFileInspected,
+} as const
+
+const ENV_EVENT_BY_ACTION = {
+  [ConfiguruFileAction.Changed]: ConfiguruEventType.EnvFileChanged,
+  [ConfiguruFileAction.Opened]: ConfiguruEventType.EnvFileOpened,
+  [ConfiguruFileAction.Inspected]: ConfiguruEventType.EnvFileInspected,
+} as const
+
 export const createConfiguruFileEvent = async (
   file: vscode.TextDocument,
   context: ConfiguruContext,
@@ -166,24 +199,21 @@ export const createConfiguruFileEvent = async (
 
   if (isTsConfigFile) {
     return addRelatedPaths({
-      type:
-        action === ConfiguruFileAction.Changed
-          ? ConfiguruEventType.TsConfigFileChanged
-          : ConfiguruEventType.TsConfigFileOpened,
+      type: TS_CONFIG_EVENT_BY_ACTION[action],
       ...baseEvent,
     } satisfies Omit<
-      ConfigFileChangedEvent | ConfigFileOpenedEvent,
+      ConfigFileChangedEvent | ConfigFileOpenedEvent | ConfigFileInspectedEvent,
       'relatedPaths'
     >)
   }
   if (isEnvFile) {
     return addRelatedPaths({
-      type:
-        action === ConfiguruFileAction.Changed
-          ? ConfiguruEventType.EnvFileChanged
-          : ConfiguruEventType.EnvFileOpened,
+      type: ENV_EVENT_BY_ACTION[action],
       ...baseEvent,
-    } satisfies Omit<EnvFileChangedEvent | EnvFileOpenedEvent, 'relatedPaths'>)
+    } satisfies Omit<
+      EnvFileChangedEvent | EnvFileOpenedEvent | EnvFileInspectedEvent,
+      'relatedPaths'
+    >)
   }
   return null
 }
