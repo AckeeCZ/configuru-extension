@@ -137,65 +137,84 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
     }
   })
 
-  vscode.workspace.onDidChangeConfiguration(async event => {
-    if (!event.affectsConfiguration('configuru')) {
-      return
-    }
-    const config = await context.config.load()
-    highlighters.forEach(highlighter => {
-      if (
-        event.affectsConfiguration(`configuru.features.${highlighter.flag}`) &&
-        !config.features[highlighter.flag]
-      ) {
-        diagnosticCollections[highlighter.name].clear()
+  vsCodeContext.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration(async event => {
+      if (!event.affectsConfiguration('configuru')) {
+        return
       }
-    })
-
-    suggestions.forEach(suggestion => {
-      if (event.affectsConfiguration(`configuru.features.${suggestion.flag}`)) {
-        if (!config.features[suggestion.flag]) {
-          suggestionDisposables[suggestion.flag].dispose()
-        } else {
-          suggestionDisposables[suggestion.flag] =
-            suggestion.register(vsCodeContext)
+      const config = await context.config.load()
+      highlighters.forEach(highlighter => {
+        if (
+          event.affectsConfiguration(
+            `configuru.features.${highlighter.flag}`
+          ) &&
+          !config.features[highlighter.flag]
+        ) {
+          diagnosticCollections[highlighter.name].clear()
         }
-      }
-    })
-    definitionProviders.forEach(definitionProvider => {
-      if (
-        event.affectsConfiguration(
-          `configuru.features.${definitionProvider.flag}`
-        )
-      ) {
-        if (!config.features[definitionProvider.flag]) {
-          definitionDisposables[definitionProvider.flag].dispose()
-        } else {
-          definitionDisposables[definitionProvider.flag] =
-            definitionProvider.register(vsCodeContext)
+      })
+
+      suggestions.forEach(suggestion => {
+        if (
+          event.affectsConfiguration(`configuru.features.${suggestion.flag}`)
+        ) {
+          if (!config.features[suggestion.flag]) {
+            suggestionDisposables[suggestion.flag].dispose()
+          } else {
+            suggestionDisposables[suggestion.flag] =
+              suggestion.register(vsCodeContext)
+          }
         }
-      }
+      })
+      definitionProviders.forEach(definitionProvider => {
+        if (
+          event.affectsConfiguration(
+            `configuru.features.${definitionProvider.flag}`
+          )
+        ) {
+          if (!config.features[definitionProvider.flag]) {
+            definitionDisposables[definitionProvider.flag].dispose()
+          } else {
+            definitionDisposables[definitionProvider.flag] =
+              definitionProvider.register(vsCodeContext)
+          }
+        }
+      })
+      await triggerExtensionLoaded(config)
     })
-    await triggerExtensionLoaded(config)
-  })
+  )
 
-  vscode.workspace.onDidChangeTextDocument(async event => {
-    await triggerFileEvent(event.document, ConfiguruFileAction.Changed)
-  })
+  vsCodeContext.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument(async event => {
+      await triggerFileEvent(event.document, ConfiguruFileAction.Changed)
+    })
+  )
 
-  vscode.workspace.onDidOpenTextDocument(async file => {
-    await triggerFileEvent(file, ConfiguruFileAction.Opened)
-  })
-  vscode.workspace.onDidRenameFiles(async event => {
-    await triggerFilesMovedEvent([
-      ...event.files.flatMap(file => [file.oldUri.path, file.newUri.path]),
-    ])
-  })
-  vscode.workspace.onDidDeleteFiles(async event => {
-    await triggerFilesMovedEvent(event.files.map(file => file.path))
-  })
-  vscode.workspace.onDidCreateFiles(async event => {
-    await triggerFilesMovedEvent(event.files.map(file => file.path))
-  })
+  vsCodeContext.subscriptions.push(
+    vscode.workspace.onDidOpenTextDocument(async file => {
+      await triggerFileEvent(file, ConfiguruFileAction.Opened)
+    })
+  )
+
+  vsCodeContext.subscriptions.push(
+    vscode.workspace.onDidRenameFiles(async event => {
+      await triggerFilesMovedEvent([
+        ...event.files.flatMap(file => [file.oldUri.path, file.newUri.path]),
+      ])
+    })
+  )
+
+  vsCodeContext.subscriptions.push(
+    vscode.workspace.onDidDeleteFiles(async event => {
+      await triggerFilesMovedEvent(event.files.map(file => file.path))
+    })
+  )
+
+  vsCodeContext.subscriptions.push(
+    vscode.workspace.onDidCreateFiles(async event => {
+      await triggerFilesMovedEvent(event.files.map(file => file.path))
+    })
+  )
 
   await triggerExtensionLoaded()
 }

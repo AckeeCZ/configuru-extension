@@ -3,6 +3,10 @@ import type { ConfigTsKey } from './config-ts-parser'
 import { ConfiguruEvent, ConfiguruEventType } from './event'
 import { EnvFileKeyMatch, helpers } from './helpers'
 import { ui } from './ui'
+import {
+  disableExtensionForWorkspace,
+  openSettingsAtKey,
+} from './settings-helper'
 
 export interface ConfiguruContext {
   state: {
@@ -39,6 +43,12 @@ export type ConfiguruFeatureFlags = Partial<
 >
 
 export type ConfigPaths = Array<{ loader: string; envs: string[] }>
+
+enum NotificationButton {
+  FixPaths = 'Fix Paths',
+  DisableForWorkspace = 'Disable for This Workspace',
+  GoToSettings = 'Go to Settings',
+}
 
 const cache: ContextCache = {
   files: new Map(),
@@ -92,6 +102,12 @@ const DEFAULT_TS_CONFIG_PATH = 'src/config.ts'
 let loadedConfig: ConfiguruExtConfig | undefined
 const state: ConfiguruContext['state'] = {}
 
+// Prevents stacking error notifications. VS Code has no API to dismiss a
+// notification programmatically, so while one is on screen we suppress new
+// ones, then clear the flag once the user dismisses or acts on it - so the
+// next problem still re-notifies with an up-to-date message.
+let isErrorNotificationOpen = false
+
 const load = async (): Promise<ConfiguruExtConfig> => {
   const vsCodeConfig = vscode.workspace.getConfiguration('configuru')
   const defaultPaths = [
@@ -115,24 +131,56 @@ const load = async (): Promise<ConfiguruExtConfig> => {
   }
 
   try {
-    loadedConfig.configPaths = await validatePaths(
-      vsCodeConfig.get('paths', defaultPaths)
+    const isAnyFeatureEnabled = Object.values(featureFlags).some(
+      enabled => enabled
     )
-    if (state.isConfigLoaded === false) {
-      ui.notifications.info('Configuru Extension loaded successfully now')
+    if (isAnyFeatureEnabled) {
+      loadedConfig.configPaths = await validatePaths(
+        vsCodeConfig.get('paths', defaultPaths)
+      )
+      if (state.isConfigLoaded === false) {
+        ui.notifications.info('Configuru Extension loaded successfully now')
+      }
+      state.isConfigLoaded = true
     }
-    state.isConfigLoaded = true
   } catch (error) {
-    if (state.isConfigLoaded !== false) {
+    state.isConfigLoaded = false
+    if (!isErrorNotificationOpen) {
+      isErrorNotificationOpen = true
       const errorMessage =
         error instanceof Error ? error.message : String(error)
-      ui.notifications.error(
-        `Configuru Extension Error - Invalid Config Paths: ${errorMessage}`
-      )
-    }
-    state.isConfigLoaded = false
-  }
+      void ui.notifications
+        .errorWithActions(
+          `Configuru Extension Error - Invalid Config Paths: ${errorMessage}`,
+          [
+            {
+              title: NotificationButton.FixPaths,
+              action: async () => {
+                await openSettingsAtKey('configuru.paths')
+              },
+            },
+            {
+              title: NotificationButton.DisableForWorkspace,
+              action: async () => {
+                await disableExtensionForWorkspace()
+                const action = await vscode.window.showInformationMessage(
+                  'Configuru has been disabled for this workspace. Re-enable in Settings.',
+                  NotificationButton.GoToSettings
+                )
 
+                if (action === NotificationButton.GoToSettings) {
+                  await openSettingsAtKey('configuru')
+                }
+              },
+            },
+          ]
+        )
+        .catch(() => undefined)
+        .finally(() => {
+          isErrorNotificationOpen = false
+        })
+    }
+  }
   return loadedConfig
 }
 
