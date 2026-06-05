@@ -48,6 +48,11 @@
           "default": true,
           "description": "Highlights loader type mismatches between the ts config file and the default values in env file"
         },
+        "configuru.features.goToVariableDefinition": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enables Go to Definition feature for variables in ts file to navigate to their definition in env file"
+        },
         "configuru.paths": {
           "type": "array",
           "description": "Paths to the ts config file and relevant env files",

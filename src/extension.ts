@@ -15,6 +15,8 @@ import { missingEnvFileKeysHighlighter } from './components/highlighters/missing
 import { unsafeDefaultVariablesHighlighter } from './components/highlighters/unsafe-default-variables'
 import { envVariablesSuggestion } from './components/suggestions/env-variables-suggestion'
 import { loaderTypeMismatchHighlighter } from './components/highlighters/loader-type-mismatch'
+import { DefinitionPort } from './components/definitions/definition.port'
+import { variableDefinitionProvider } from './components/definitions/loader-to-env-definition'
 
 const highlighters: Array<HighlighterPort<any>> = [
   missingEnvFileKeysHighlighter,
@@ -25,8 +27,11 @@ const highlighters: Array<HighlighterPort<any>> = [
 
 const suggestions = [envVariablesSuggestion]
 
+const definitionProviders: DefinitionPort[] = [variableDefinitionProvider]
+
 const diagnosticCollections: Record<string, vscode.DiagnosticCollection> = {}
 const suggestionDisposables: Record<string, vscode.Disposable> = {}
+const definitionDisposables: Record<string, vscode.Disposable> = {}
 
 const getWorkspaceFolders = () => {
   const workspaceFolders = vscode.workspace.workspaceFolders
@@ -126,6 +131,12 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
     }
   })
 
+  definitionProviders.forEach(provider => {
+    if (config.features[provider.flag]) {
+      definitionDisposables[provider.flag] = provider.register(vsCodeContext)
+    }
+  })
+
   vscode.workspace.onDidChangeConfiguration(async event => {
     if (!event.affectsConfiguration('configuru')) {
       return
@@ -147,6 +158,20 @@ export async function activate(vsCodeContext: vscode.ExtensionContext) {
         } else {
           suggestionDisposables[suggestion.flag] =
             suggestion.register(vsCodeContext)
+        }
+      }
+    })
+    definitionProviders.forEach(definitionProvider => {
+      if (
+        event.affectsConfiguration(
+          `configuru.features.${definitionProvider.flag}`
+        )
+      ) {
+        if (!config.features[definitionProvider.flag]) {
+          definitionDisposables[definitionProvider.flag].dispose()
+        } else {
+          definitionDisposables[definitionProvider.flag] =
+            definitionProvider.register(vsCodeContext)
         }
       }
     })
@@ -181,6 +206,9 @@ export function deactivate() {
     diagnostic.clear()
   })
   Object.values(suggestionDisposables).forEach(disposable => {
+    disposable.dispose()
+  })
+  Object.values(definitionDisposables).forEach(disposable => {
     disposable.dispose()
   })
   context.clean()
